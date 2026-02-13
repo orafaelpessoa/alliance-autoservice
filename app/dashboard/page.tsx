@@ -8,8 +8,7 @@ import { Search, Plus, User, Car } from "lucide-react";
 type SearchResult = {
   id: string;
   type: "client" | "vehicle";
-  label: string;
-  secondary: string | null;
+  title: string;
 };
 
 export default function DashboardPage() {
@@ -28,14 +27,29 @@ export default function DashboardPage() {
     const timeout = setTimeout(async () => {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from("search_index")
-        .select("*")
-        .ilike("search_text", `%${query.toLowerCase()}%`)
-        .limit(10);
+      const normalizedQuery = query
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
 
-      if (!error && data) {
-        setResults(data as SearchResult[]);
+      const { data, error } = await supabase.rpc("search_index_ranked", {
+        q: normalizedQuery,
+      });
+
+      if (error) {
+        console.error("Erro na busca:", error);
+        setResults([]);
+      } else {
+        const uniqueResults = Array.from(
+          new Map(
+            ((data ?? []) as SearchResult[]).map((item) => [
+              `${item.type}-${item.id}`,
+              item,
+            ]),
+          ).values(),
+        );
+
+        setResults(uniqueResults);
       }
 
       setLoading(false);
@@ -96,7 +110,7 @@ export default function DashboardPage() {
 
             {results.map((item) => (
               <button
-                key={item.id}
+                key={`${item.type}-${item.id}`}
                 onClick={() => handleNavigate(item)}
                 className="w-full text-left px-4 py-3 hover:bg-gray-100 flex gap-3 items-start"
               >
@@ -109,11 +123,9 @@ export default function DashboardPage() {
                 </div>
 
                 <div>
-                  <p className="font-medium text-black">{item.label}</p>
-
-                  {item.secondary && (
-                    <p className="text-sm text-gray-600">{item.secondary}</p>
-                  )}
+                  <p className="font-medium uppercase text-black">
+                    {item.title}
+                  </p>
                 </div>
               </button>
             ))}

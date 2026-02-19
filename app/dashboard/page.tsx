@@ -125,7 +125,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="font-medium uppercase text-black">
                     {item.title}
-                  </p>
+                  </p>1npm 
                 </div>
               </button>
             ))}

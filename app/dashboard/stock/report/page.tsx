@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Filter } from "lucide-react";
+import { Filter, Printer } from "lucide-react";
 
 type ReportItem = {
   id: string;
@@ -17,6 +17,8 @@ type ReportItem = {
 export default function StockReportPage() {
   const [data, setData] = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const [partName, setPartName] = useState("");
 
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
@@ -38,6 +40,7 @@ export default function StockReportPage() {
       p_end_date: endDate,
       p_type: type === "all" ? null : type,
       p_part_id: null,
+      p_part_name: partName || null,
     });
 
     if (!error && data) {
@@ -47,13 +50,45 @@ export default function StockReportPage() {
     setLoading(false);
   }
 
+  function handlePrint() {
+    window.print();
+  }
+
   useEffect(() => {
     loadReport();
   }, []);
 
   return (
-    <main className="min-h-screen bg-gray-100">
-      <header className="bg-yellow-400 px-6 py-4 shadow">
+    <main className="min-h-screen bg-gray-100 print:bg-white">
+      {/* CSS DE IMPRESSÃO */}
+      <style>{`
+        @media print {
+          body {
+            background: white;
+          }
+
+          .no-print {
+            display: none !important;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+
+          th, td {
+            border: 1px solid #000;
+            padding: 6px;
+            font-size: 12px;
+          }
+
+          thead {
+            background: #eee !important;
+          }
+        }
+      `}</style>
+
+      <header className="bg-yellow-400 px-6 py-4 shadow print:shadow-none">
         <h1 className="text-xl font-bold text-center text-black">
           Relatório de Estoque
         </h1>
@@ -61,7 +96,7 @@ export default function StockReportPage() {
 
       <section className="max-w-6xl mx-auto mt-10 px-4">
         {/* FILTROS */}
-        <div className="bg-white p-4 rounded-md shadow mb-6 flex flex-wrap gap-4 items-end">
+        <div className="bg-white p-4 rounded-md shadow mb-6 flex flex-wrap gap-4 items-end no-print">
           <div>
             <label className="block text-sm font-medium text-black">
               Data inicial
@@ -93,7 +128,7 @@ export default function StockReportPage() {
             <select
               value={type}
               onChange={(e) => setType(e.target.value as any)}
-              className="border px-3 py-2 rounded-md text-black"
+              className="border px-3 py-2 rounded-md text-black cursor-pointer"
             >
               <option value="all">Todos</option>
               <option value="in">Entrada</option>
@@ -101,19 +136,42 @@ export default function StockReportPage() {
             </select>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-black">
+              Nome da peça
+            </label>
+            <input
+              type="text"
+              placeholder="Ex: filtro de óleo"
+              value={partName}
+              onChange={(e) => setPartName(e.target.value)}
+              className="border px-3 py-2 rounded-md text-black"
+            />
+          </div>
+
           <button
             onClick={loadReport}
-            className="bg-yellow-400 text-black px-4 py-2 rounded-md shadow hover:bg-yellow-300 flex items-center gap-2 cursor-pointer"
+            className="bg-yellow-400 text-black px-4 py-2 cursor-pointer rounded-md shadow hover:bg-yellow-300 flex items-center gap-2"
           >
             <Filter size={16} />
             Filtrar
           </button>
+
+          <button
+            onClick={handlePrint}
+            className="bg-gray-800 text-white px-4 py-2 cursor-pointer rounded-md shadow hover:bg-gray-700 flex items-center gap-2"
+          >
+            <Printer size={16} />
+            Imprimir
+          </button>
         </div>
 
         {/* TABELA */}
-        <div className="bg-white rounded-md shadow overflow-x-auto">
+        <div className="bg-white rounded-md shadow overflow-x-auto print:shadow-none">
           {loading && (
-            <p className="p-4 text-sm text-black">Carregando relatório...</p>
+            <p className="p-4 text-sm text-black">
+              Carregando relatório...
+            </p>
           )}
 
           {!loading && data.length === 0 && (

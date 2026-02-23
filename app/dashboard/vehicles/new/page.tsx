@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import { maskPhone, maskPlate } from "@/lib/masks";
 
 type Client = {
   id: string;
@@ -13,16 +14,20 @@ type Client = {
 export default function NewVehiclePage() {
   const router = useRouter();
 
-  // veículo
+  // ===============================
+  // VEÍCULO
+  // ===============================
   const [plate, setPlate] = useState("");
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
 
-  // cliente
+  // ===============================
+  // CLIENTE
+  // ===============================
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [clients, setClients] = useState<Client[]>([]);
-  const [clientId, setClientId] = useState<string>("");
+  const [clientId, setClientId] = useState("");
 
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
@@ -34,14 +39,12 @@ export default function NewVehiclePage() {
   }, []);
 
   async function loadClients() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("clients")
       .select("id, name, phone")
       .order("name");
 
-    if (!error && data) {
-      setClients(data);
-    }
+    if (data) setClients(data);
   }
 
   async function handleSubmit() {
@@ -79,14 +82,19 @@ export default function NewVehiclePage() {
         .insert({
           name: clientName.trim(),
           phone: clientPhone.trim(),
-          // ❌ NÃO EXISTE created_by EM clients
         })
-        .select("id")
+        .select()
         .single();
 
-      if (error || !newClient) {
-        console.error(error);
-        alert("Erro ao criar cliente");
+      if (error) {
+        if (error.code === "23505") {
+          alert(
+            "Cliente já cadastrado.\nVerifique a lista de clientes existentes.",
+          );
+        } else {
+          console.error(error);
+          alert("Erro ao criar cliente");
+        }
         setLoading(false);
         return;
       }
@@ -111,7 +119,7 @@ export default function NewVehiclePage() {
         model: model.trim(),
         year: year.trim(),
         client_id: finalClientId,
-        created_by: user.id, // ✅ EXISTE E É OBRIGATÓRIO
+        created_by: user.id,
       })
       .select("id")
       .single();
@@ -123,7 +131,6 @@ export default function NewVehiclePage() {
       return;
     }
 
-    setLoading(false);
     router.push(`/dashboard/vehicles/${vehicle.id}`);
   }
 
@@ -136,16 +143,16 @@ export default function NewVehiclePage() {
       </header>
 
       <section className="max-w-3xl mx-auto mt-8 bg-white p-6 rounded-md shadow">
-        {/* VEÍCULO */}
+        {/* ================= VEÍCULO ================= */}
         <h2 className="text-lg font-semibold mb-4 text-black">
           Dados do Veículo
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input
-            placeholder="Placa"
             value={plate}
-            onChange={(e) => setPlate(e.target.value)}
+            onChange={(e) => setPlate(maskPlate(e.target.value))}
+            placeholder="ABC-1234"
             className="border px-3 py-2 rounded-md text-black"
           />
 
@@ -171,63 +178,77 @@ export default function NewVehiclePage() {
           />
         </div>
 
-        {/* CLIENTE */}
-        <h2 className="text-lg font-semibold mt-8 mb-4 text-black">
-          Cliente
-        </h2>
+        {/* ================= CLIENTE ================= */}
+        <h2 className="text-lg font-semibold mt-8 mb-4 text-black">Cliente</h2>
 
-        <div className="flex gap-4 mb-4">
-          <label className="flex items-center gap-2 text-black">
-            <input
-              type="radio"
-              checked={mode === "existing"}
-              onChange={() => setMode("existing")}
-            />
+        {/* RADIO */}
+        <div className="flex gap-6 mb-6">
+          <button
+            type="button"
+            onClick={() => setMode("existing")}
+            className={`px-4 py-2 rounded-md border cursor-pointer text-black ${
+              mode === "existing"
+                ? "bg-yellow-400 border-yellow-400"
+                : "bg-white"
+            }`}
+          >
             Cliente existente
-          </label>
+          </button>
 
-          <label className="flex items-center gap-2 text-black">
-            <input
-              type="radio"
-              checked={mode === "new"}
-              onChange={() => setMode("new")}
-            />
+          <button
+            type="button"
+            onClick={() => setMode("new")}
+            className={`px-4 py-2 rounded-md border cursor-pointer text-black ${
+              mode === "new" ? "bg-yellow-400 border-yellow-400" : "bg-white"
+            }`}
+          >
             Novo cliente
-          </label>
+          </button>
         </div>
 
-        {mode === "existing" && (
-          <select
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            className="border px-3 py-2 rounded-md w-full text-black"
+        {/* SLIDE CONTAINER */}
+        <div className="relative overflow-hidden">
+          <div
+            className={`flex transition-transform duration-300 ease-in-out ${
+              mode === "existing" ? "translate-x-0" : "-translate-x-full"
+            }`}
           >
-            <option value="">Selecione um cliente</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} — {c.phone}
-              </option>
-            ))}
-          </select>
-        )}
+            {/* EXISTENTE */}
+            <div className="w-full shrink-0 pr-4">
+              <select
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                className="border px-3 py-2 rounded-md w-full text-black"
+              >
+                <option value="">Selecione um cliente</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} — {c.phone}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        {mode === "new" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              placeholder="Nome do cliente"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              className="border px-3 py-2 rounded-md text-black"
-            />
+            {/* NOVO */}
+            <div className="w-full shrink-0 pl-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  placeholder="Nome do cliente"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  className="border px-3 py-2 rounded-md text-black"
+                />
 
-            <input
-              placeholder="Telefone"
-              value={clientPhone}
-              onChange={(e) => setClientPhone(e.target.value)}
-              className="border px-3 py-2 rounded-md text-black"
-            />
+                <input
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(maskPhone(e.target.value))}
+                  placeholder="(83) 98888-8888"
+                  className="border px-3 py-2 rounded-md text-black"
+                />
+              </div>
+            </div>
           </div>
-        )}
+        </div>
 
         <button
           onClick={handleSubmit}

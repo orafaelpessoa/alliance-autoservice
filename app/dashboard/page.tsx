@@ -134,7 +134,7 @@ export default function DashboardPage() {
 
         {/* BOTÃO CADASTRAR */}
         <button
-          onClick={() => router.push("/dashboard/clients/new")}
+          onClick={() => router.push("/dashboard/vehicles/new")}
           className="mt-10 bg-yellow-400 text-black font-semibold px-6 py-3 rounded-md shadow hover:bg-yellow-300 flex items-center gap-2"
         >
           <Plus size={18} />

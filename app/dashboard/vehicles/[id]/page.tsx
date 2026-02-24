@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
+import AppHeader from "@/components/AppHeader";
 
 type Client = {
   id: string;
@@ -138,25 +140,16 @@ export default function VehiclePage() {
   return (
     <main className="min-h-screen bg-gray-100 print:bg-white">
       {/* HEADER */}
-      <header className="bg-yellow-400 px-6 py-4 shadow print:hidden flex items-center justify-between">
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="bg-black text-white px-3 py-1 rounded-md"
-        >
-          Voltar
-        </button>
+      <AppHeader>
 
-        <h1 className="text-xl font-bold text-black">
-          Veículo — {vehicle.plate}
-        </h1>
-
-        <button
-          onClick={handlePrint}
-          className="bg-black text-white px-3 py-1 rounded-md"
-        >
-          Imprimir
-        </button>
-      </header>
+  {/* IMPRIMIR */}
+  <button
+    onClick={handlePrint}
+    className="bg-black text-white px-3 py-2 rounded-md cursor-pointer hover:bg-gray-800"
+  >
+    Imprimir
+  </button>
+</AppHeader>
 
       {/* CONTEÚDO / RELATÓRIO */}
       <section className="max-w-4xl mx-auto mt-8 space-y-6 px-4 print:px-0 print:mt-0">
@@ -212,7 +205,7 @@ export default function VehiclePage() {
 
             <button
               onClick={addService}
-              className="bg-yellow-400 text-black px-4 py-2 rounded-md shadow hover:bg-yellow-300"
+              className="bg-yellow-400 text-black px-4 py-2 rounded-md shadow hover:bg-yellow-300 cursor-pointer"
             >
               Adicionar Serviço
             </button>

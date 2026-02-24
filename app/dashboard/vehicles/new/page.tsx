@@ -14,23 +14,19 @@ type Client = {
 export default function NewVehiclePage() {
   const router = useRouter();
 
-  // ===============================
   // VEÍCULO
-  // ===============================
   const [plate, setPlate] = useState("");
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
 
-  // ===============================
   // CLIENTE
-  // ===============================
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [clients, setClients] = useState<Client[]>([]);
   const [clientId, setClientId] = useState("");
-
+  const [clientFilter, setClientFilter] = useState("");
   const [clientName, setClientName] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
+  const [phone, setPhone] = useState("");
 
   const [loading, setLoading] = useState(false);
 
@@ -39,12 +35,14 @@ export default function NewVehiclePage() {
   }, []);
 
   async function loadClients() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("clients")
       .select("id, name, phone")
       .order("name");
 
-    if (data) setClients(data);
+    if (!error && data) {
+      setClients(data);
+    }
   }
 
   async function handleSubmit() {
@@ -65,13 +63,13 @@ export default function NewVehiclePage() {
       return;
     }
 
-    let finalClientId = clientId || null;
+    let finalClientId: string | null = clientId || null;
 
     // ===============================
     // CRIA CLIENTE (SE NOVO)
     // ===============================
     if (mode === "new") {
-      if (!clientName.trim() || !clientPhone.trim()) {
+      if (!clientName.trim() || !phone.trim()) {
         alert("Informe nome e telefone do cliente");
         setLoading(false);
         return;
@@ -81,7 +79,7 @@ export default function NewVehiclePage() {
         .from("clients")
         .insert({
           name: clientName.trim(),
-          phone: clientPhone.trim(),
+          phone: phone.trim(),
         })
         .select()
         .single();
@@ -134,6 +132,10 @@ export default function NewVehiclePage() {
     router.push(`/dashboard/vehicles/${vehicle.id}`);
   }
 
+  const filteredClients = clients.filter((client) =>
+    client.name.toLowerCase().includes(clientFilter.toLowerCase()),
+  );
+
   return (
     <main className="min-h-screen bg-gray-100">
       <header className="bg-yellow-400 px-6 py-4 shadow">
@@ -143,7 +145,7 @@ export default function NewVehiclePage() {
       </header>
 
       <section className="max-w-3xl mx-auto mt-8 bg-white p-6 rounded-md shadow">
-        {/* ================= VEÍCULO ================= */}
+        {/* VEÍCULO */}
         <h2 className="text-lg font-semibold mb-4 text-black">
           Dados do Veículo
         </h2>
@@ -178,47 +180,49 @@ export default function NewVehiclePage() {
           />
         </div>
 
-        {/* ================= CLIENTE ================= */}
+        {/* CLIENTE */}
         <h2 className="text-lg font-semibold mt-8 mb-4 text-black">Cliente</h2>
 
-        {/* RADIO */}
-        <div className="flex gap-6 mb-6">
-          <button
-            type="button"
-            onClick={() => setMode("existing")}
-            className={`px-4 py-2 rounded-md border cursor-pointer text-black ${
-              mode === "existing"
-                ? "bg-yellow-400 border-yellow-400"
-                : "bg-white"
-            }`}
-          >
-            Cliente existente
-          </button>
+        {/* TOGGLE */}
+        <div className="mb-4">
+          <div className="inline-flex rounded-md border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setMode("existing")}
+              className={`px-4 py-2 text-black transition cursor-pointer ${
+                mode === "existing"
+                  ? "bg-yellow-400"
+                  : "bg-white hover:bg-gray-100"
+              }`}
+            >
+              Cliente existente
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setMode("new")}
-            className={`px-4 py-2 rounded-md border cursor-pointer text-black ${
-              mode === "new" ? "bg-yellow-400 border-yellow-400" : "bg-white"
-            }`}
-          >
-            Novo cliente
-          </button>
+            <button
+              type="button"
+              onClick={() => setMode("new")}
+              className={`px-4 py-2 text-black transition cursor-pointer ${
+                mode === "new" ? "bg-yellow-400" : "bg-white hover:bg-gray-100"
+              }`}
+            >
+              Novo cliente
+            </button>
+          </div>
         </div>
 
-        {/* SLIDE CONTAINER */}
+        {/* SLIDE */}
         <div className="relative overflow-hidden">
           <div
-            className={`flex transition-transform duration-300 ease-in-out ${
-              mode === "existing" ? "translate-x-0" : "-translate-x-full"
+            className={`flex w-[200%] transition-transform duration-300 ease-in-out ${
+              mode === "new" ? "-translate-x-1/2" : "translate-x-0"
             }`}
           >
             {/* EXISTENTE */}
-            <div className="w-full shrink-0 pr-4">
+            <div className="w-1/2 pr-4">
               <select
                 value={clientId}
                 onChange={(e) => setClientId(e.target.value)}
-                className="border px-3 py-2 rounded-md w-full text-black"
+                className="border px-3 py-2 rounded-md w-full text-black cursor-pointer"
               >
                 <option value="">Selecione um cliente</option>
                 {clients.map((c) => (
@@ -230,7 +234,7 @@ export default function NewVehiclePage() {
             </div>
 
             {/* NOVO */}
-            <div className="w-full shrink-0 pl-4">
+            <div className="w-1/2 pl-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input
                   placeholder="Nome do cliente"
@@ -240,8 +244,8 @@ export default function NewVehiclePage() {
                 />
 
                 <input
-                  value={clientPhone}
-                  onChange={(e) => setClientPhone(maskPhone(e.target.value))}
+                  value={phone}
+                  onChange={(e) => setPhone(maskPhone(e.target.value))}
                   placeholder="(83) 98888-8888"
                   className="border px-3 py-2 rounded-md text-black"
                 />
@@ -253,7 +257,7 @@ export default function NewVehiclePage() {
         <button
           onClick={handleSubmit}
           disabled={loading}
-          className="mt-8 w-full bg-yellow-400 text-black px-4 py-2 rounded-md shadow hover:bg-yellow-300 disabled:opacity-50"
+          className="mt-8 w-full bg-yellow-400 text-black px-4 py-2 cursor-pointer rounded-md shadow hover:bg-yellow-300 disabled:opacity-50"
         >
           {loading ? "Salvando..." : "Cadastrar veículo"}
         </button>

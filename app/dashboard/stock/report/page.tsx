@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Filter, Printer } from "lucide-react";
+import App from "next/app";
+import AppHeader from "@/components/AppHeader";
+import { useRouter } from "next/navigation";
 
 type ReportItem = {
   id: string;
@@ -17,7 +20,7 @@ type ReportItem = {
 export default function StockReportPage() {
   const [data, setData] = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(false);
-
+  const router = useRouter();
   const [partName, setPartName] = useState("");
 
   const [startDate, setStartDate] = useState(() => {
@@ -88,11 +91,16 @@ export default function StockReportPage() {
         }
       `}</style>
 
-      <header className="bg-yellow-400 px-6 py-4 shadow print:shadow-none">
-        <h1 className="text-xl font-bold text-center text-black">
+       <AppHeader>
+  <button
+    onClick={() => router.push("/dashboard/stock")}
+    className="bg-black text-white px-4 py-2 rounded-md shadow hover:bg-gray-800 flex items-center gap-2 cursor-pointer"> 
+       Voltar
+  </button>
+</AppHeader>
+      <h1 className="text-xl font-bold text-center py-7 text-black">
           Relatório de Estoque
         </h1>
-      </header>
 
       <section className="max-w-6xl mx-auto mt-10 px-4">
         {/* FILTROS */}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { maskPhone, maskPlate } from "@/lib/masks";
+import AppHeader from "@/components/AppHeader";
 
 type Client = {
   id: string;
@@ -138,12 +139,11 @@ export default function NewVehiclePage() {
 
   return (
     <main className="min-h-screen bg-gray-100">
-      <header className="bg-yellow-400 px-6 py-4 shadow">
-        <h1 className="text-xl font-bold text-center text-black">
+      <AppHeader />
+
+     <h1 className="text-xl font-bold py-7 text-center text-black ">
           Cadastro de Veículo
         </h1>
-      </header>
-
       <section className="max-w-3xl mx-auto mt-8 bg-white p-6 rounded-md shadow">
         {/* VEÍCULO */}
         <h2 className="text-lg font-semibold mb-4 text-black">

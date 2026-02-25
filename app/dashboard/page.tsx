@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { Search, Plus, Car, Package } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
+
+
 type SearchResult = {
   id: string;
   plate: string;
@@ -28,13 +30,14 @@ type StockMovement = {
 
 export default function DashboardPage() {
   const router = useRouter();
-
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [recentVehicles, setRecentVehicles] = useState<Vehicle[]>([]);
   const [recentStock, setRecentStock] = useState<StockMovement[]>([]);
+
+  
 
   // ===============================
   // BUSCA PRINCIPAL (VEÍCULOS)
@@ -95,15 +98,7 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-gray-100">
-      <AppHeader>
-        <button
-          onClick={() => router.push("/dashboard/vehicles/new")}
-          className="bg-black text-white px-4 py-2 rounded-md shadow hover:bg-gray-800 flex items-center gap-2 cursor-pointer"
-        >
-          <Plus size={16} />
-          Cadastrar
-        </button>
-      </AppHeader>
+    <AppHeader />
 
       <section className="max-w-5xl mx-auto px-4 mt-10">
         {/* BUSCA */}
@@ -139,12 +134,19 @@ export default function DashboardPage() {
               <button
                 key={item.id}
                 onClick={() => router.push(`/dashboard/vehicles/${item.id}`)}
-                className="w-full text-left px-4 py-3 hover:bg-gray-100 flex gap-3 items-center cursor-pointer"
+                className="w-full text-left px-4 py-3 hover:bg-gray-100 flex gap-3 cursor-pointer"
               >
-                <Car className="w-4 h-4 text-black" />
-                <span className="font-medium uppercase text-black">
-                  {item.plate}
-                </span>
+                <Car className="w-4 h-4 mt-1 text-black" />
+
+                <div className="flex flex-col">
+                  <span className="font-medium uppercase text-black">
+                    {item.plate}
+                  </span>
+
+                  <span className="text-xs text-black">
+                    Cliente: {item.client_name}
+                  </span>
+                </div>
               </button>
             ))}
           </div>

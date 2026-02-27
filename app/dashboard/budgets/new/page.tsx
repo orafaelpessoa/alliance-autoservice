@@ -421,49 +421,48 @@ export default function NewBudgetPage() {
           )}
         </div>
 
-        {/* RESUMO */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-medium text-black mb-4">Resumo</h2>
+       {/* RESUMO */}
+<div className="bg-white rounded-lg shadow p-6">
+  <h2 className="text-lg font-medium text-black mb-4">Resumo</h2>
 
-          {/* Subtotal */}
-          <div className="flex justify-between mb-2 text-black">
-            <span>Subtotal</span>
-            <span className="font-medium">R$ {subtotal.toFixed(2)}</span>
-          </div>
+  {/* Subtotal */}
+  <div className="flex justify-between mb-2 text-black">
+    <span>Subtotal</span>
+    <span className="font-medium">R$ {subtotal.toFixed(2)}</span>
+  </div>
 
-          {/* Desconto total */}
-          <div className="flex justify-between mb-2 text-black">
-            <span>Desconto total</span>
-            <span className="font-medium">
-              R$ {items.reduce((sum, i) => sum + i.discount, 0).toFixed(2)}
-            </span>
-          </div>
+  {/* Desconto total */}
+  <div className="flex justify-between mb-2 text-black">
+    <span>Desconto total</span>
+    <span className="font-medium">
+      R$ {items.reduce((sum, i) => sum + i.discount, 0).toFixed(2)}
+    </span>
+  </div>
 
-          {/* Total final */}
-          <div className="flex justify-between mb-4 text-black">
-            <span>Total final</span>
-            <span className="font-semibold text-lg">
-              R${" "}
-              {(
-                subtotal - items.reduce((sum, i) => sum + i.discount, 0)
-              ).toFixed(2)}
-            </span>
-          </div>
+  {/* Total final */}
+  <div className="flex justify-between mb-2 text-black">
+    <span>Total final</span>
+    <span className="font-semibold text-lg">
+      R$ {(subtotal - items.reduce((sum, i) => sum + i.discount, 0)).toFixed(2)}
+    </span>
+  </div>
 
-          <div className="flex justify-end gap-4">
-            <button className="px-4 py-2 rounded-md bg-gray-200 text-black hover:bg-gray-300 cursor-pointer">
-              Salvar rascunho
-            </button>
+  {/* Quantidade de itens */}
+  <div className="flex justify-between mb-4 text-black">
+    <span>Total de itens</span>
+    <span className="font-medium">{items.length}</span>
+  </div>
 
-            <button
-              onClick={saveBudget}
-              disabled={items.length === 0}
-              className="px-4 py-2 rounded-md bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-50 cursor-pointer"
-            >
-              Gerar orçamento
-            </button>
-          </div>
-        </div>
+  <div className="flex justify-end gap-4">
+    <button
+      onClick={saveBudget}
+      disabled={items.length === 0}
+      className="px-4 py-2 rounded-md bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-50 cursor-pointer"
+    >
+      Gerar orçamento
+    </button>
+  </div>
+</div>
       </section>
       {showPartModal && (
         <PartPickerModal

@@ -261,7 +261,7 @@ export default function DashboardPage() {
         {/* CTA */}
         <button
           onClick={() => router.push("/dashboard/vehicles/new")}
-          className="mt-12 mx-auto flex items-center gap-2 bg-yellow-400 px-6 py-3 rounded-md shadow hover:bg-yellow-300 text-black cursor-pointer"
+          className="mt-12 mx-auto flex items-center gap-2 bg-yellow-300 px-6 py-3 rounded-md shadow hover:bg-yellow-400 text-black cursor-pointer"
         >
           <Plus size={18} />
           Cadastrar veículo

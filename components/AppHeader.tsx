@@ -29,7 +29,7 @@ export default function AppHeader({ children }: AppHeaderProps) {
   }, []);
 
   return (
-    <header className="bg-yellow-400 px-6 py-4 shadow relative min-h-22">
+    <header className="bg-yellow-300 px-6 py-4 shadow relative min-h-22">
       {/* CENTRO CLICÁVEL */}
       <button
         onClick={() => {

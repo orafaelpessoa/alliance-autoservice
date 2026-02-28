@@ -34,10 +34,20 @@ const styles = StyleSheet.create({
   },
   colDesc: { width: "40%" },
   col: { width: "15%", textAlign: "right" },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 2,
+  },
+  summaryTotal: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTop: "1 solid #000",
+    fontSize: 12,
+  },
 })
 
 /**
- * ⚠️ NÃO exportamos um componente React
  * Exportamos uma FUNÇÃO que retorna o Document
  */
 export function createBudgetPdfDocument({ budget }: BudgetPdfProps) {
@@ -50,6 +60,14 @@ export function createBudgetPdfDocument({ budget }: BudgetPdfProps) {
     : budget.vehicle
 
   const items = budget.budget_items ?? []
+
+  const totalParts = items
+    .filter((item: any) => item.type === "part")
+    .reduce((sum: number, item: any) => sum + item.total, 0)
+
+  const totalLabor = items
+    .filter((item: any) => item.type === "service")
+    .reduce((sum: number, item: any) => sum + item.total, 0)
 
   return (
     <Document>
@@ -92,10 +110,32 @@ export function createBudgetPdfDocument({ budget }: BudgetPdfProps) {
           </View>
         ))}
 
+        {/* RESUMO */}
         <View style={{ marginTop: 20 }}>
-          <Text>Subtotal: R$ {budget.subtotal.toFixed(2)}</Text>
-          <Text>Descontos: R$ {budget.discount_total.toFixed(2)}</Text>
-          <Text>Total: R$ {budget.total.toFixed(2)}</Text>
+          <View style={styles.summaryRow}>
+            <Text>Total de Peças</Text>
+            <Text>R$ {totalParts.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text>Total de Mão de Obra</Text>
+            <Text>R$ {totalLabor.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text>Subtotal</Text>
+            <Text>R$ {budget.subtotal.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text>Descontos</Text>
+            <Text>R$ {budget.discount_total.toFixed(2)}</Text>
+          </View>
+
+          <View style={[styles.summaryRow, styles.summaryTotal]}>
+            <Text>Total</Text>
+            <Text>R$ {budget.total.toFixed(2)}</Text>
+          </View>
         </View>
       </Page>
     </Document>

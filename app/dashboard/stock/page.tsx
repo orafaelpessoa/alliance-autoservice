@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { Search, Plus, PlusCircle, MinusCircle } from "lucide-react";
 import StockMovementModal from "@/components/StockMovementModal";
 import NewPartModal from "@/components/NewPartModal";
+import EditPartPriceModal from "@/components/EditPartPriceModal";
 import AppHeader from "@/components/AppHeader";
 import { useRouter } from "next/navigation";
 
@@ -12,6 +13,8 @@ type StockItem = {
   id: string;
   name: string;
   quantity: number;
+  cost: number;
+  sale_price: number;
 };
 
 export default function StockPage() {
@@ -19,14 +22,57 @@ export default function StockPage() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
   const [openNewPart, setOpenNewPart] = useState(false);
   const [selectedPart, setSelectedPart] = useState<StockItem | null>(null);
   const [movementType, setMovementType] = useState<"in" | "out" | null>(null);
+  const [pricePart, setPricePart] = useState<StockItem | null>(null);
 
+  // --- LOAD STOCK ---
   async function loadStock() {
     setLoading(true);
-    const { data, error } = await supabase.rpc("stock_current");
-    if (!error && data) setItems(data as StockItem[]);
+
+    const { data: parts, error } = await supabase
+      .from("parts")
+      .select(`
+        id,
+        name,
+        cost,
+        sale_price,
+        stock_movements (
+          type,
+          quantity
+        )
+      `)
+      .order("name");
+
+    if (error) {
+      console.error("Erro ao carregar estoque:", error);
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
+    const normalized = (parts ?? []).map((part: any) => {
+      const quantity = (part.stock_movements ?? []).reduce(
+        (total: number, mov: any) => {
+          return mov.type === "in"
+            ? total + Number(mov.quantity)
+            : total - Number(mov.quantity);
+        },
+        0
+      );
+
+      return {
+        id: part.id,
+        name: part.name,
+        quantity,
+        cost: Number(part.cost) || 0,
+        sale_price: Number(part.sale_price) || 0,
+      };
+    });
+
+    setItems(normalized);
     setLoading(false);
   }
 
@@ -35,8 +81,16 @@ export default function StockPage() {
   }, []);
 
   const filteredItems = items.filter((item) =>
-    item.name.toLowerCase().includes(query.toLowerCase()),
+    item.name.toLowerCase().includes(query.toLowerCase())
   );
+
+  function formatPrice(value?: number) {
+    if (!value || value <= 0) return "—";
+    return value.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+  }
 
   return (
     <main className="min-h-screen bg-gray-100">
@@ -47,7 +101,7 @@ export default function StockPage() {
       </h1>
 
       <section className="max-w-4xl mx-auto mt-10 px-4">
-        {/* BUSCA + NOVA PEÇA */}
+        {/* BUSCA + AÇÕES */}
         <div className="flex gap-2 mb-6">
           <div className="flex items-center bg-white rounded-md shadow px-3 flex-1">
             <Search size={16} className="text-gray-500" />
@@ -79,11 +133,15 @@ export default function StockPage() {
         {/* LISTA */}
         <div className="bg-white rounded-md shadow divide-y">
           {loading && (
-            <p className="p-4 text-sm text-gray-500">Carregando estoque...</p>
+            <p className="p-4 text-sm text-gray-500">
+              Carregando estoque...
+            </p>
           )}
 
           {!loading && filteredItems.length === 0 && (
-            <p className="p-4 text-sm text-gray-500">Nenhuma peça encontrada</p>
+            <p className="p-4 text-sm text-gray-500">
+              Nenhuma peça encontrada
+            </p>
           )}
 
           {filteredItems.map((item) => {
@@ -91,24 +149,43 @@ export default function StockPage() {
               item.quantity === 0
                 ? "text-red-600"
                 : item.quantity < 5
-                  ? "text-yellow-600"
-                  : "text-green-600";
+                ? "text-yellow-600"
+                : "text-green-600";
 
             return (
               <div
                 key={item.id}
                 className="flex items-center justify-between px-4 py-3"
               >
+                {/* INFO */}
                 <div>
                   <p className="font-medium uppercase tracking-wide text-black">
                     {item.name}
                   </p>
-                  <p className={`text-sm font-semibold ${status}`}>
-                    {item.quantity} em estoque
-                  </p>
+
+                  <div className="flex gap-4 text-sm">
+                    <span className={`font-semibold ${status}`}>
+                      {item.quantity} em estoque
+                    </span>
+
+                    <span className="font-semibold text-black">
+                      {formatPrice(item.sale_price)}
+                    </span>
+                  </div>
                 </div>
 
+                {/* AÇÕES */}
                 <div className="flex gap-2">
+                  {/* EDITAR PREÇO */}
+                  <button
+                    onClick={() => setPricePart(item)}
+                    title="Editar preços"
+                    className="p-2 rounded-md bg-yellow-100 text-yellow-700 hover:bg-yellow-200 cursor-pointer"
+                  >
+                    💲
+                  </button>
+
+                  {/* ENTRADA */}
                   <button
                     onClick={() => {
                       setSelectedPart(item);
@@ -120,6 +197,7 @@ export default function StockPage() {
                     <PlusCircle size={18} />
                   </button>
 
+                  {/* SAÍDA */}
                   <button
                     onClick={() => {
                       setSelectedPart(item);
@@ -144,14 +222,27 @@ export default function StockPage() {
           partId={selectedPart.id}
           type={movementType}
           onClose={() => setMovementType(null)}
-          onSuccess={() => {
-            loadStock();
+          onSuccess={async () => {
             setMovementType(null);
+            await loadStock();
           }}
         />
       )}
 
-      {/* MODAL NOVA PEÇA (ENCadeado) */}
+      {/* MODAL EDIÇÃO DE PREÇO */}
+      {pricePart && (
+        <EditPartPriceModal
+          open={true}
+          part={pricePart}
+          onClose={() => setPricePart(null)}
+          onSuccess={async () => {
+            setPricePart(null);
+            await loadStock();
+          }}
+        />
+      )}
+
+      {/* MODAL NOVA PEÇA */}
       <NewPartModal
         open={openNewPart}
         onClose={() => setOpenNewPart(false)}

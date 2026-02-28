@@ -1,33 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type Props = {
   open: boolean;
+  part: {
+    id: string;
+    name: string;
+    cost: number;
+    sale_price: number;
+  };
   onClose: () => void;
-  onSuccess: (partId: string) => void;
+  onSuccess: () => void;
 };
 
-export default function StockCreatePartModal({
+export default function EditPartPriceModal({
   open,
+  part,
   onClose,
   onSuccess,
 }: Props) {
-  const [name, setName] = useState("");
-  const [cost, setCost] = useState<number | "">("");
-  const [salePrice, setSalePrice] = useState<number | "">("");
+  const [cost, setCost] = useState<number | "">(part.cost);
+  const [salePrice, setSalePrice] = useState<number | "">(part.sale_price);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setCost(part.cost);
+      setSalePrice(part.sale_price);
+      setError(null);
+      setLoading(false);
+    }
+  }, [open, part]);
 
   if (!open) return null;
 
   const hasMarginWarning =
     cost !== "" && salePrice !== "" && salePrice < cost;
 
-  async function handleCreate() {
-    if (!name.trim() || cost === "" || salePrice === "") {
-      setError("Preencha todos os campos obrigatórios.");
+  async function handleSave() {
+    if (loading) return;
+
+    if (cost === "" || salePrice === "") {
+      setError("Preencha todos os campos.");
       return;
     }
 
@@ -39,103 +56,99 @@ export default function StockCreatePartModal({
     setLoading(true);
     setError(null);
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("parts")
-      .insert({
-        name: name.trim(),
+      .update({
         cost,
         sale_price: salePrice,
       })
-      .select("id")
-      .single();
+      .eq("id", part.id);
 
     if (error) {
-      if (error.code === "23505") {
-        setError("Esta peça já está cadastrada.");
-      } else {
-        setError("Erro ao cadastrar peça.");
-      }
+      setError("Erro ao atualizar preços.");
       setLoading(false);
       return;
     }
 
-    onSuccess(data.id);
-
-    // reset
-    setName("");
-    setCost("");
-    setSalePrice("");
-    setLoading(false);
+    onSuccess();
   }
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-md shadow w-full max-w-md p-6">
-        <h2 className="text-lg font-bold mb-4 text-black">
-          Nova peça
+        <h2 className="text-lg font-bold mb-1 text-black">
+          Editar preços
         </h2>
 
-        {/* Nome */}
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Nome da peça"
-          className="w-full border px-3 py-2 rounded-md mb-3 text-black"
-        />
+        <p className="text-sm text-gray-600 mb-4">
+          {part.name}
+        </p>
 
-        {/* Preço de custo */}
+        {/* PREÇO DE CUSTO */}
         <div className="mb-3">
           <label className="text-sm font-medium text-black">
             Preço de custo (interno)
           </label>
           <input
             type="number"
-            min={0}
+            min={0.01}
+            step="0.01"
             value={cost}
-            onChange={(e) => setCost(Number(e.target.value))}
+            onChange={(e) =>
+              setCost(e.target.value === "" ? "" : Number(e.target.value))
+            }
             className="w-full border px-3 py-2 rounded-md mt-1 text-black"
           />
         </div>
 
-        {/* Preço de venda */}
+        {/* PREÇO DE VENDA */}
         <div className="mb-2">
           <label className="text-sm font-medium text-black">
             Preço de venda (cliente)
           </label>
           <input
             type="number"
-            min={0}
+            min={0.01}
+            step="0.01"
             value={salePrice}
-            onChange={(e) => setSalePrice(Number(e.target.value))}
+            onChange={(e) =>
+              setSalePrice(e.target.value === "" ? "" : Number(e.target.value))
+            }
             className="w-full border px-3 py-2 rounded-md mt-1 text-black"
           />
         </div>
 
-        {/* Alerta de margem */}
         {hasMarginWarning && (
           <p className="text-sm text-yellow-700 mb-2">
             ⚠️ O preço de venda está menor que o custo.
           </p>
         )}
 
+        <p className="text-xs text-gray-500 mb-4">
+          Alterações de preço não afetam orçamentos já criados.
+        </p>
+
         {error && (
-          <p className="text-sm text-red-600 mb-2">{error}</p>
+          <p className="text-sm text-red-600 mb-2">
+            {error}
+          </p>
         )}
 
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-md bg-red-500 text-white cursor-pointer"
+            disabled={loading}
+            className="px-4 py-2 rounded-md bg-red-500 text-white cursor-pointer disabled:opacity-60"
           >
             Cancelar
           </button>
 
           <button
-            onClick={handleCreate}
+            onClick={handleSave}
             disabled={loading}
-            className="px-4 py-2 rounded-md bg-yellow-400 text-black cursor-pointer hover:bg-yellow-300"
+            className="px-4 py-2 rounded-md bg-yellow-400 text-black cursor-pointer hover:bg-yellow-300 disabled:opacity-60"
           >
-            Salvar
+            {loading ? "Salvando..." : "Salvar"}
           </button>
         </div>
       </div>

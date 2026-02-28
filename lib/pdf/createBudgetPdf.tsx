@@ -25,8 +25,8 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   headerLogo: {
-    width: 85,
-    height: 50,
+    width: 110, // mais larga (logo quadrada)
+    height: 60,
     marginRight: 12,
   },
   headerText: {
@@ -43,12 +43,12 @@ const styles = StyleSheet.create({
 
   /* WATERMARK */
   watermark: {
-  position: "absolute",
-  top: "20%",
-  left: "5%",
-  width: 500,
-  opacity: 0.1,
-},
+    position: "absolute",
+    top: "15%",
+    left: "0%",
+    width: 500,
+    opacity: 0.07,
+  },
 
   title: {
     fontSize: 14,
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: "40%",
+    width: "45%",
     marginBottom: 2,
   },
 
@@ -106,6 +106,17 @@ const styles = StyleSheet.create({
 })
 
 function BudgetPdfDocument({ budget }: { budget: any }) {
+  const items = budget.budget_items ?? []
+
+  // ✅ CÁLCULOS CORRETOS
+  const totalParts = items
+    .filter((i: any) => i.type === "part")
+    .reduce((sum: number, i: any) => sum + i.total, 0)
+
+  const totalLabor = items
+    .filter((i: any) => i.type === "service")
+    .reduce((sum: number, i: any) => sum + i.total, 0)
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -161,7 +172,7 @@ function BudgetPdfDocument({ budget }: { budget: any }) {
           <Text style={styles.col}>Total</Text>
         </View>
 
-        {(budget.budget_items ?? []).map((item: any) => (
+        {items.map((item: any) => (
           <View key={item.id} style={styles.row}>
             <Text style={styles.colDesc}>{item.description}</Text>
             <Text style={styles.col}>{item.quantity}</Text>
@@ -180,13 +191,25 @@ function BudgetPdfDocument({ budget }: { budget: any }) {
         {/* SUMMARY */}
         <View style={styles.summary}>
           <View style={styles.summaryRow}>
+            <Text>Total Peças</Text>
+            <Text>R$ {totalParts.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text>Total Mão de Obra</Text>
+            <Text>R$ {totalLabor.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
             <Text>Subtotal</Text>
             <Text>R$ {budget.subtotal.toFixed(2)}</Text>
           </View>
+
           <View style={styles.summaryRow}>
             <Text>Descontos</Text>
             <Text>R$ {budget.discount_total.toFixed(2)}</Text>
           </View>
+
           <View style={styles.summaryRow}>
             <Text style={styles.total}>Total</Text>
             <Text style={styles.total}>
@@ -200,7 +223,7 @@ function BudgetPdfDocument({ budget }: { budget: any }) {
 }
 
 /**
- * 👉 Função usada pelo client (NÃO muda)
+ * 👉 Função usada pelo client (permanece)
  */
 export async function createBudgetPdfBlob(
   budget: any

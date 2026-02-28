@@ -4,11 +4,12 @@ import AppHeader from "@/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createBudgetPdfBlob } from "@/lib/pdf/createBudgetPdf"
+import { createBudgetPdfBlob } from "@/lib/pdf/createBudgetPdf";
 import Link from "next/link";
 
 type BudgetItem = {
   id: string;
+  type: "part" | "service"
   description: string;
   quantity: number;
   unit_price: number;
@@ -47,14 +48,15 @@ export default function BudgetPage() {
             model
           ),
           budget_items (
-            id,
-            description,
-            quantity,
-            unit_price,
-            discount,
-            total
-          )
-        `
+          id,
+          type,
+          description,
+          quantity,
+          unit_price,
+          discount,
+          total
+        )
+        `,
         )
         .eq("id", budgetId)
         .single();
@@ -63,7 +65,7 @@ export default function BudgetPage() {
         router.push("/dashboard");
         return;
       }
-    
+
       setBudget(data);
       setLoading(false);
     };
@@ -75,19 +77,19 @@ export default function BudgetPage() {
     if (!budget) return;
 
     try {
-  const blob = await createBudgetPdfBlob(budget)
-  const url = URL.createObjectURL(blob)
+      const blob = await createBudgetPdfBlob(budget);
+      const url = URL.createObjectURL(blob);
 
-  const a = document.createElement("a")
-  a.href = url
-  a.download = `orcamento-${budget.id}.pdf`
-  a.click()
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `orcamento-${budget.id}.pdf`;
+      a.click();
 
-  URL.revokeObjectURL(url)
+      URL.revokeObjectURL(url);
     } finally {
-  setDownloading(false)
+      setDownloading(false);
     }
-}
+  }
   if (loading || !budget || !budget.client || !budget.vehicle) {
     return (
       <main className="min-h-screen bg-gray-100">
@@ -102,6 +104,23 @@ export default function BudgetPage() {
   const client = budget.client;
   const vehicle = budget.vehicle;
   const items: BudgetItem[] = budget.budget_items ?? [];
+
+  const totalParts = items
+    .filter((item) => item.type === "part")
+    .reduce((sum, item) => sum + Number(item.total), 0);
+
+  const totalLabor = items
+    .filter((item) => item.type === "service")
+    .reduce((sum, item) => sum + Number(item.total), 0);
+
+  const subtotal = totalParts + totalLabor;
+
+  const totalDiscount = items.reduce(
+    (sum, item) => sum + Number(item.discount),
+    0,
+  );
+
+  const totalFinal = subtotal - totalDiscount;
 
   return (
     <main className="min-h-screen bg-gray-100">
@@ -198,18 +217,28 @@ export default function BudgetPage() {
         {/* SUMMARY */}
         <div className="bg-white rounded-lg shadow p-6 space-y-2 text-black">
           <div className="flex justify-between">
+            <span>Total de Peças</span>
+            <span>R$ {totalParts.toFixed(2)}</span>
+          </div>
+
+          <div className="flex justify-between">
+            <span>Total Mão de Obra</span>
+            <span>R$ {totalLabor.toFixed(2)}</span>
+          </div>
+
+          <div className="flex justify-between border-t pt-2">
             <span>Subtotal</span>
-            <span>R$ {budget.subtotal.toFixed(2)}</span>
+            <span>R$ {subtotal.toFixed(2)}</span>
           </div>
 
           <div className="flex justify-between">
             <span>Descontos</span>
-            <span>R$ {budget.discount_total.toFixed(2)}</span>
+            <span>R$ {totalDiscount.toFixed(2)}</span>
           </div>
 
           <div className="flex justify-between font-semibold text-lg border-t pt-2">
             <span>Total</span>
-            <span>R$ {budget.total.toFixed(2)}</span>
+            <span>R$ {totalFinal.toFixed(2)}</span>
           </div>
         </div>
       </section>

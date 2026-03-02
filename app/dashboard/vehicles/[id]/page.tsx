@@ -5,6 +5,10 @@ import { supabase } from "@/lib/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 
+/* =======================
+   TYPES
+======================= */
+
 type Client = {
   id: string;
   name: string;
@@ -26,11 +30,27 @@ type Budget = {
   total: number;
 };
 
+type BudgetItem = {
+  id: string;
+  description: string;
+};
+
 type Service = {
   id: string;
   created_at: string;
   budget_id: string;
+  budgets: {
+    total: number;
+    budget_items: {
+      id: string;
+      description: string;
+    }[];
+  } | null;
 };
+
+/* =======================
+   PAGE
+======================= */
 
 export default function VehiclePage() {
   const params = useParams();
@@ -41,7 +61,6 @@ export default function VehiclePage() {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
@@ -51,18 +70,15 @@ export default function VehiclePage() {
 
   async function loadAll() {
     setLoading(true);
-    await Promise.all([
-      loadVehicle(),
-      loadBudgets(),
-      loadServices(),
-    ]);
+    await Promise.all([loadVehicle(), loadBudgets(), loadServices()]);
     setLoading(false);
   }
 
   async function loadVehicle() {
     const { data } = await supabase
       .from("vehicles")
-      .select(`
+      .select(
+        `
         id,
         plate,
         brand,
@@ -73,7 +89,8 @@ export default function VehiclePage() {
           name,
           phone
         )
-      `)
+      `,
+      )
       .eq("id", vehicleId)
       .single();
 
@@ -86,8 +103,8 @@ export default function VehiclePage() {
       model: data.model,
       year: data.year,
       client: Array.isArray(data.client)
-        ? data.client[0] ?? null
-        : data.client ?? null,
+        ? (data.client[0] ?? null)
+        : (data.client ?? null),
     });
   }
 
@@ -104,9 +121,23 @@ export default function VehiclePage() {
   async function loadServices() {
     const { data } = await supabase
       .from("services")
-      .select("id, created_at, budget_id")
-      .eq("vehicle_id", vehicleId);
-
+      .select(
+        `
+        id,
+        created_at,
+        budget_id,
+        budgets (
+          total,
+          budget_items (
+            id,
+            description
+          )
+        )
+      `,
+      )
+      .eq("vehicle_id", vehicleId)
+      .order("created_at", { ascending: false });
+    console.log("RAW SERVICES:", data);
     if (data) setServices(data);
   }
 
@@ -118,26 +149,33 @@ export default function VehiclePage() {
   }
 
   async function registerService(budgetId: string) {
-    const { data: session } = await supabase.auth.getSession();
-    if (!session?.session) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    const { data, error } = await supabase
-      .from("services")
-      .insert({
-        vehicle_id: vehicleId,
-        budget_id: budgetId,
-        created_by: session.session.user.id,
-      })
-      .select()
-      .single();
+    if (!user) {
+      alert("Usuário não autenticado");
+      return;
+    }
 
-    if (error || !data) {
+    const { error } = await supabase.from("services").insert({
+      user_id: user.id,
+      created_by: user.id,
+      vehicle_id: vehicleId,
+      budget_id: budgetId,
+      description: "Serviço executado a partir do orçamento",
+      service_date: new Date().toISOString().split("T")[0],
+    });
+
+    if (error) {
+      console.error(error);
       alert("Erro ao registrar serviço");
       return;
     }
 
     setShowModal(false);
-    router.push(`/dashboard/services/${data.id}`);
+    await loadServices();
+    await loadBudgets();
   }
 
   const usedBudgetIds = services.map((s) => s.budget_id);
@@ -156,11 +194,15 @@ export default function VehiclePage() {
           <h2 className="text-lg font-semibold text-black mb-2">
             Informações do Veículo
           </h2>
-          <p className="text-black"><strong>Placa:</strong> {vehicle.plate}</p>
+          <p className="text-black">
+            <strong>Placa:</strong> {vehicle.plate}
+          </p>
           <p className="text-black">
             <strong>Modelo:</strong> {vehicle.brand} {vehicle.model}
           </p>
-          <p className="text-black"><strong>Ano:</strong> {vehicle.year}</p>
+          <p className="text-black">
+            <strong>Ano:</strong> {vehicle.year}
+          </p>
         </div>
 
         {/* CLIENTE */}
@@ -190,20 +232,20 @@ export default function VehiclePage() {
             onClick={() =>
               router.push(`/dashboard/budgets/new?vehicleId=${vehicle.id}`)
             }
-            className="bg-yellow-300 text-black px-4 py-2 cursor-pointer rounded-md hover:bg-yellow-400"
+            className="bg-yellow-300 text-black px-4 py-2 rounded-md cursor-pointer hover:bg-yellow-400"
           >
             Fazer orçamento
           </button>
 
           <button
             onClick={() => setShowModal(true)}
-            className="bg-green-600 text-white px-4 py-2 cursor-pointer rounded-md hover:bg-green-700"
+            className="bg-green-600 text-white px-4 py-2 rounded-md cursor-pointer hover:bg-green-700"
           >
             Registrar serviço
           </button>
         </div>
 
-        {/* SERVIÇOS */}
+        {/* SERVIÇOS EXECUTADOS */}
         <div className="bg-white p-6 rounded-md shadow">
           <h2 className="text-lg font-semibold text-black mb-4">
             Serviços Executados
@@ -213,30 +255,35 @@ export default function VehiclePage() {
             <p className="text-black">Nenhum serviço executado.</p>
           )}
 
-          <ul className="space-y-2">
-            {services.map((s) => (
-              <li
-                key={s.id}
-                className="border p-3 rounded-md flex justify-between text-black"
-              >
-                <span>
-                  {new Date(s.created_at).toLocaleDateString("pt-BR")} — Orçamento{" "}
-                  {s.budget_id.slice(0, 8)}
-                </span>
+          <div className="space-y-4">
+            {services.map((s) => {
+              if (!s.budgets) return null;
 
-                <button
-                  onClick={() => router.push(`/dashboard/services/${s.id}`)}
-                  className="bg-black text-white px-3 py-1 rounded-md"
-                >
-                  Ver serviço
-                </button>
-              </li>
-            ))}
-          </ul>
+              return (
+                <div key={s.id} className="text-black space-y-2 border-b pb-3">
+                  <p className="font-semibold">Serviço executado</p>
+
+                  <p className="text-sm">
+                    Data: {new Date(s.created_at).toLocaleDateString("pt-BR")}
+                  </p>
+
+                  <ul className="list-disc ml-4 text-sm">
+                    {s.budgets.budget_items.map((item) => (
+                      <li key={item.id}>{item.description}</li>
+                    ))}
+                  </ul>
+
+                  <p className="font-semibold text-sm">
+                    {formatMoney(s.budgets.total)}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
-      {/* MODAL */}
+      {/* MODAL DE ORÇAMENTOS */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-md w-full max-w-lg">
@@ -244,7 +291,7 @@ export default function VehiclePage() {
               Selecionar orçamento
             </h3>
 
-            <ul className="space-y-2 max-h-80 overflow-auto">
+            <ul className="space-y-3 max-h-80 overflow-auto">
               {budgets.map((b) => {
                 const used = usedBudgetIds.includes(b.id);
 
@@ -261,7 +308,7 @@ export default function VehiclePage() {
                     <button
                       disabled={used}
                       onClick={() => registerService(b.id)}
-                      className={`px-3 py-1 rounded-md cursor-pointer text-white ${
+                      className={`px-3 py-1 rounded-md text-white cursor-pointer ${
                         used
                           ? "bg-gray-400 cursor-not-allowed"
                           : "bg-green-600 hover:bg-green-700"
@@ -276,7 +323,7 @@ export default function VehiclePage() {
 
             <button
               onClick={() => setShowModal(false)}
-              className="mt-4 text-black cursor-pointer underline"
+              className="mt-4 text-black underline cursor-pointer"
             >
               Cancelar
             </button>

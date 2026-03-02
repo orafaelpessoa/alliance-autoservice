@@ -4,11 +4,17 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { X } from "lucide-react";
 
+type BudgetItem = {
+  id: string;
+  description: string;
+};
+
 type Budget = {
   id: string;
   created_at: string;
   total: number;
   used_in_service: boolean | null;
+  budget_items: BudgetItem[];
 };
 
 type BudgetsModalProps = {
@@ -37,7 +43,18 @@ export default function BudgetsModal({
 
     const { data, error } = await supabase
       .from("budgets")
-      .select("id, created_at, total, used_in_service")
+      .select(
+        `
+  id,
+  created_at,
+  total,
+  used_in_service,
+  budget_items (
+    id,
+    description
+  )
+`,
+      )
       .eq("vehicle_id", vehicleId)
       .order("created_at", { ascending: false });
 
@@ -83,17 +100,27 @@ export default function BudgetsModal({
                 key={budget.id}
                 className="border rounded-md p-4 flex justify-between items-center"
               >
-                <div className="text-black text-sm">
+                <div className="text-black text-sm space-y-1">
+                  <p>
+                    <strong>Orçamento:</strong> #{budget.id.slice(0, 8)}
+                  </p>
+
                   <p>
                     <strong>Data:</strong>{" "}
-                    {new Date(budget.created_at).toLocaleDateString()}
+                    {new Date(budget.created_at).toLocaleDateString("pt-BR")}
                   </p>
-                  <p>
-                    <strong>Total:</strong> R$ {budget.total.toFixed(2)}
-                  </p>
-                  <p>
-                    <strong>Status:</strong>{" "}
-                    {usado ? "Serviço já executado" : "Em aberto"}
+
+                  <ul className="list-disc ml-4 text-xs">
+                    {budget.budget_items.slice(0, 3).map((item) => (
+                      <li key={item.id}>{item.description}</li>
+                    ))}
+                    {budget.budget_items.length > 3 && (
+                      <li>+ {budget.budget_items.length - 3} itens</li>
+                    )}
+                  </ul>
+
+                  <p className="font-semibold">
+                    Total: R$ {budget.total.toFixed(2)}
                   </p>
                 </div>
 

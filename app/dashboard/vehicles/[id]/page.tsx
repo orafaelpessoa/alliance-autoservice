@@ -5,10 +5,6 @@ import { supabase } from "@/lib/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 
-/* =======================
-   TYPES
-======================= */
-
 type Client = {
   id: string;
   name: string;
@@ -30,11 +26,6 @@ type Budget = {
   total: number;
 };
 
-type BudgetItem = {
-  id: string;
-  description: string;
-};
-
 type Service = {
   id: string;
   created_at: string;
@@ -47,10 +38,6 @@ type Service = {
     }[];
   } | null;
 };
-
-/* =======================
-   PAGE
-======================= */
 
 export default function VehiclePage() {
   const params = useParams();
@@ -104,7 +91,7 @@ export default function VehiclePage() {
       year: data.year,
       client: Array.isArray(data.client)
         ? (data.client[0] ?? null)
-        : (data.client ?? null),
+        : (data.client as any ?? null),
     });
   }
 
@@ -137,8 +124,17 @@ export default function VehiclePage() {
       )
       .eq("vehicle_id", vehicleId)
       .order("created_at", { ascending: false });
-    console.log("RAW SERVICES:", data);
-    if (data) setServices(data);
+
+    if (data) {
+      const formattedServices: Service[] = data.map((item: any) => ({
+        id: item.id,
+        created_at: item.created_at,
+        budget_id: item.budget_id,
+        budgets: Array.isArray(item.budgets) ? item.budgets[0] : item.budgets,
+      }));
+
+      setServices(formattedServices);
+    }
   }
 
   function formatMoney(value: number) {
@@ -189,7 +185,6 @@ export default function VehiclePage() {
       <AppHeader />
 
       <section className="max-w-5xl mx-auto mt-8 space-y-6 px-4">
-        {/* VEÍCULO */}
         <div className="bg-white p-6 rounded-md shadow">
           <h2 className="text-lg font-semibold text-black mb-2">
             Informações do Veículo
@@ -205,7 +200,6 @@ export default function VehiclePage() {
           </p>
         </div>
 
-        {/* CLIENTE */}
         <div className="bg-white p-6 rounded-md shadow">
           <h2 className="text-lg font-semibold text-black mb-2">
             Cliente Vinculado
@@ -226,7 +220,6 @@ export default function VehiclePage() {
           )}
         </div>
 
-        {/* AÇÕES */}
         <div className="flex gap-3">
           <button
             onClick={() =>
@@ -245,7 +238,6 @@ export default function VehiclePage() {
           </button>
         </div>
 
-        {/* SERVIÇOS EXECUTADOS */}
         <div className="bg-white p-6 rounded-md shadow">
           <h2 className="text-lg font-semibold text-black mb-4">
             Serviços Executados
@@ -283,7 +275,6 @@ export default function VehiclePage() {
         </div>
       </section>
 
-      {/* MODAL DE ORÇAMENTOS */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-md w-full max-w-lg">

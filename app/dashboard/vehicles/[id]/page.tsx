@@ -20,10 +20,16 @@ type Vehicle = {
   client: Client | null;
 };
 
+type BudgetItem = {
+  id: string;
+  description: string;
+};
+
 type Budget = {
   id: string;
   created_at: string;
   total: number;
+  budget_items: BudgetItem[];
 };
 
 type Service = {
@@ -91,14 +97,24 @@ export default function VehiclePage() {
       year: data.year,
       client: Array.isArray(data.client)
         ? (data.client[0] ?? null)
-        : (data.client as any ?? null),
+        : ((data.client as any) ?? null),
     });
   }
 
   async function loadBudgets() {
     const { data } = await supabase
       .from("budgets")
-      .select("id, created_at, total")
+      .select(
+        `
+  id,
+  created_at,
+  total,
+  budget_items (
+    id,
+    description
+  )
+`,
+      )
       .eq("vehicle_id", vehicleId)
       .order("created_at", { ascending: false });
 
@@ -150,8 +166,7 @@ export default function VehiclePage() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      alert("Usuário não autenticado");
-      return;
+      throw new Error("Usuário não autenticado");
     }
 
     const { error } = await supabase.from("services").insert({
@@ -165,13 +180,21 @@ export default function VehiclePage() {
 
     if (error) {
       console.error(error);
-      alert("Erro ao registrar serviço");
-      return;
+      throw error;
     }
+  }
 
-    setShowModal(false);
-    await loadServices();
-    await loadBudgets();
+  async function handleRegisterService(budgetId: string) {
+    try {
+      await registerService(budgetId);
+
+      // 🔄 refetch controlado
+      await Promise.all([loadServices(), loadBudgets()]);
+
+      setShowModal(false);
+    } catch (err) {
+      alert("Erro ao registrar serviço");
+    }
   }
 
   const usedBudgetIds = services.map((s) => s.budget_id);
@@ -291,14 +314,31 @@ export default function VehiclePage() {
                     key={b.id}
                     className="border p-3 rounded-md flex justify-between items-center text-black"
                   >
-                    <span>
-                      {new Date(b.created_at).toLocaleDateString("pt-BR")} —{" "}
-                      {formatMoney(b.total)}
-                    </span>
+                    <div className="text-black text-sm space-y-1 max-w-xs">
+                      <p className="font-semibold">
+                        {used ? "Serviço executado" : "Orçamento"}
+                      </p>
+
+                      <p>
+                        Data:{" "}
+                        {new Date(b.created_at).toLocaleDateString("pt-BR")}
+                      </p>
+
+                      <p className="text-xs">
+                        {b.budget_items
+                          .slice(0, 3)
+                          .map((item) => item.description)
+                          .join(", ")}
+                        {b.budget_items.length > 3 &&
+                          `, + ${b.budget_items.length - 3} itens`}
+                      </p>
+
+                      <p className="font-semibold">{formatMoney(b.total)}</p>
+                    </div>
 
                     <button
                       disabled={used}
-                      onClick={() => registerService(b.id)}
+                      onClick={() => handleRegisterService(b.id)}
                       className={`px-3 py-1 rounded-md text-white cursor-pointer ${
                         used
                           ? "bg-gray-400 cursor-not-allowed"

@@ -38,16 +38,45 @@ export default function StockReportPage() {
   async function loadReport() {
     setLoading(true);
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("stock_movements")
-      .select(
-        "id, created_at, type, quantity, reason, part_id, parts(name,sale_price)"
-      )
+      .select(`
+        id,
+        created_at,
+        type,
+        quantity,
+        reason,
+        part_id,
+        parts!inner (
+          name,
+          sale_price
+        )
+      `)
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
+    if (startDate) {
+      query = query.gte("created_at", startDate);
+    }
+
+    if (endDate) {
+      query = query.lte("created_at", endDate + "T23:59:59");
+    }
+
+    if (type !== "all") {
+      query = query.eq("type", type);
+    }
+
+    if (partName.trim() !== "") {
+      query = query.ilike("parts.name", `%${partName}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Erro ao carregar relatório:", error);
+    } else {
       setData(
-        data.map((row: any) => ({
+        (data ?? []).map((row: any) => ({
           id: row.id,
           created_at: row.created_at,
           type: row.type,

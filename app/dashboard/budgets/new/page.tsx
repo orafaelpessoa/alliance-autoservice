@@ -8,7 +8,7 @@ import { Search } from "lucide-react";
 import PartPickerModal from "@/components/PartPickerModal";
 
 /* ======================
-   TYPES
+    TYPES
 ====================== */
 
 type SearchResult = {
@@ -33,6 +33,7 @@ type Part = {
   id: string;
   name: string;
   sale_price: number;
+  quantity: number;
 };
 
 type BudgetItem = {
@@ -50,44 +51,21 @@ export default function NewBudgetPage() {
   const searchParams = useSearchParams();
   const vehicleIdFromUrl = searchParams.get("vehicleId");
 
-  /* ======================
-     STATES
-  ====================== */
-
   const [clients, setClients] = useState<Client[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
 
   const [clientId, setClientId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
-
   const [items, setItems] = useState<BudgetItem[]>([]);
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-
   const [showPartModal, setShowPartModal] = useState(false);
 
   /* ======================
-     DERIVED TOTALS
-  ====================== */
-
-  const totalParts = items
-    .filter((item) => item.type === "part")
-    .reduce((sum, item) => sum + item.total, 0);
-
-  const totalLabor = items
-    .filter((item) => item.type === "service")
-    .reduce((sum, item) => sum + item.total, 0);
-
-  const totalDiscount = items.reduce((sum, item) => sum + item.discount, 0);
-
-  const subtotal = totalParts + totalLabor;
-  const totalFinal = subtotal - totalDiscount;
-
-  /* ======================
-     LOAD INITIAL DATA
+      LOAD INITIAL DATA
   ====================== */
 
   useEffect(() => {
@@ -102,8 +80,8 @@ export default function NewBudgetPage() {
         .select("id, model, plate, client_id");
 
       const { data: parts } = await supabase
-        .from("parts")
-        .select("id, name, sale_price")
+        .from("stock_current")
+        .select("id, name, sale_price, quantity")
         .order("name");
 
       setClients(clients || []);
@@ -139,11 +117,11 @@ export default function NewBudgetPage() {
   }, [vehicleIdFromUrl]);
 
   /* ======================
-     SEARCH VEHICLE
+      SEARCH LOGIC
   ====================== */
 
   useEffect(() => {
-    if (!query.trim()) {
+    if (!query.trim() || vehicleId) {
       setResults([]);
       return;
     }
@@ -170,10 +148,10 @@ export default function NewBudgetPage() {
     }, 300);
 
     return () => clearTimeout(timeout);
-  }, [query]);
+  }, [query, vehicleId]);
 
   /* ======================
-     ITEM HELPERS
+      ITEM HELPERS
   ====================== */
 
   const addService = () => {
@@ -191,23 +169,58 @@ export default function NewBudgetPage() {
   };
 
   const addPart = (part: Part) => {
-    setItems((prev) => [
-      ...prev,
-      {
-        type: "part",
-        part_id: part.id,
-        description: part.name,
-        quantity: 1,
-        unit_price: part.sale_price,
-        discount: 0,
-        total: part.sale_price,
-      },
-    ]);
+    if (part.quantity <= 0) {
+      alert("Peça indisponível em estoque");
+      return;
+    }
+
+    const existing = items.find((i) => i.part_id === part.id);
+    const currentQty = existing?.quantity ?? 0;
+
+    if (currentQty >= part.quantity) {
+      alert("Quantidade máxima disponível em estoque atingida");
+      return;
+    }
+
+    if (existing) {
+      setItems((prev) =>
+        prev.map((i) =>
+          i.part_id === part.id
+            ? {
+                ...i,
+                quantity: i.quantity + 1,
+                total: (i.quantity + 1) * i.unit_price - i.discount,
+              }
+            : i
+        )
+      );
+    } else {
+      setItems((prev) => [
+        ...prev,
+        {
+          type: "part",
+          part_id: part.id,
+          description: part.name,
+          quantity: 1,
+          unit_price: part.sale_price,
+          discount: 0,
+          total: part.sale_price,
+        },
+      ]);
+    }
   };
 
   const updateItem = (index: number, field: keyof BudgetItem, value: any) => {
     const updated = [...items];
     updated[index] = { ...updated[index], [field]: value };
+
+    if (updated[index].type === "part" && updated[index].part_id) {
+      const part = parts.find((p) => p.id === updated[index].part_id);
+      if (part && updated[index].quantity > part.quantity) {
+        updated[index].quantity = part.quantity;
+        alert("Quantidade ajustada para o máximo disponível em estoque");
+      }
+    }
 
     const q = updated[index].quantity;
     const p = updated[index].unit_price;
@@ -219,7 +232,7 @@ export default function NewBudgetPage() {
   };
 
   /* ======================
-     SAVE BUDGET
+      SAVE BUDGET
   ====================== */
 
   const saveBudget = async () => {
@@ -232,14 +245,17 @@ export default function NewBudgetPage() {
       data: { user },
     } = await supabase.auth.getUser();
 
+    const subtotal = items.reduce((s, i) => s + i.total, 0);
+    const totalDiscount = items.reduce((s, i) => s + i.discount, 0);
+
     const { data: budget, error } = await supabase
       .from("budgets")
       .insert({
         client_id: clientId,
         vehicle_id: vehicleId,
-        subtotal,
+        subtotal: subtotal,
         discount_total: totalDiscount,
-        total: totalFinal,
+        total: subtotal - totalDiscount,
         created_by: user?.id,
       })
       .select()
@@ -261,14 +277,20 @@ export default function NewBudgetPage() {
         discount: item.discount,
         total: item.total,
       });
+
+      if (item.part_id) {
+        await supabase.from("stock_movements").insert({
+          part_id: item.part_id,
+          type: "out",
+          quantity: item.quantity,
+          reason: `Orçamento #${budget.id}`,
+          created_by: user?.id,
+        });
+      }
     }
 
     router.push(`/dashboard/budgets/${budget.id}`);
   };
-
-  /* ======================
-     UI
-  ====================== */
 
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
   const selectedClient = clients.find((c) => c.id === clientId);
@@ -278,7 +300,6 @@ export default function NewBudgetPage() {
       <AppHeader />
 
       <section className="max-w-5xl mx-auto px-4 mt-10 space-y-8">
-        {/* TÍTULO */}
         <header>
           <h1 className="text-2xl font-semibold text-black">Novo orçamento</h1>
           <p className="text-sm text-gray-600 mt-1">
@@ -286,20 +307,15 @@ export default function NewBudgetPage() {
           </p>
         </header>
 
-        {/* BUSCA */}
         <div className="flex gap-2 max-w-xl">
           <input
             type="text"
-            placeholder={
-              vehicleIdFromUrl
-                ? "Veículo já selecionado"
-                : "Buscar por placa ou nome do cliente..."
-            }
+            placeholder="Buscar por placa ou nome do cliente..."
             value={query}
-            disabled={!!vehicleIdFromUrl}
+            disabled={!!vehicleId}
             onChange={(e) => setQuery(e.target.value)}
             className={`flex-1 px-4 py-3 rounded-md shadow text-black ${
-              vehicleIdFromUrl ? "bg-gray-200 cursor-not-allowed" : ""
+              vehicleId ? "bg-gray-200 cursor-not-allowed" : "bg-white"
             }`}
           />
 
@@ -308,8 +324,8 @@ export default function NewBudgetPage() {
           </button>
         </div>
 
-        {results.length > 0 && (
-          <div className="bg-white border rounded-md shadow max-w-xl">
+        {results.length > 0 && !vehicleId && (
+          <div className="bg-white border rounded-md shadow max-w-xl mt-[-28px] relative z-10">
             {results.map((r) => (
               <button
                 key={r.id}
@@ -337,23 +353,36 @@ export default function NewBudgetPage() {
         )}
 
         {selectedVehicle && selectedClient && (
-          <div className="bg-gray-50 border rounded-md p-4">
-            <p className="font-medium text-black">
-              {selectedVehicle.plate} — {selectedVehicle.model}
-            </p>
-            <p className="text-sm text-gray-600">
-              Cliente: {selectedClient.name}
-            </p>
+          <div className="bg-gray-50 border rounded-md p-4 flex justify-between items-center">
+            <div>
+              <p className="font-medium text-black">
+                {selectedVehicle.plate} — {selectedVehicle.model}
+              </p>
+              <p className="text-sm text-gray-600">
+                Cliente: {selectedClient.name}
+              </p>
+              <div className="mt-2 text-xs text-gray-400">
+                ID Veículo: {vehicleId} | ID Cliente: {clientId}
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                setVehicleId("");
+                setClientId("");
+                setQuery("");
+              }}
+              className="text-xs text-red-500 hover:underline"
+            >
+              Alterar veículo
+            </button>
           </div>
         )}
 
-        {/* ITENS */}
         <div className="bg-white rounded-lg shadow p-6 space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-medium text-black">
               Itens do orçamento
             </h2>
-
             <div className="flex gap-2">
               <button
                 onClick={addService}
@@ -361,7 +390,6 @@ export default function NewBudgetPage() {
               >
                 Serviço
               </button>
-
               <button
                 onClick={() => setShowPartModal(true)}
                 className="px-3 py-2 text-sm bg-gray-200 rounded-md hover:bg-gray-300 text-black cursor-pointer"
@@ -371,7 +399,6 @@ export default function NewBudgetPage() {
             </div>
           </div>
 
-          {/* TABELA */}
           {items.length === 0 ? (
             <p className="text-sm text-gray-500">
               Nenhum item adicionado ainda.
@@ -379,7 +406,7 @@ export default function NewBudgetPage() {
           ) : (
             <table className="w-full text-sm border-collapse text-black">
               <thead>
-                <tr className="border-b text-left text-text-black">
+                <tr className="border-b text-left">
                   <th className="py-2">Descrição</th>
                   <th className="py-2 w-20">Qtd</th>
                   <th className="py-2 w-28">Preço</th>
@@ -388,7 +415,6 @@ export default function NewBudgetPage() {
                   <th className="py-2 w-10"></th>
                 </tr>
               </thead>
-
               <tbody>
                 {items.map((item, index) => (
                   <tr key={index} className="border-b">
@@ -401,7 +427,6 @@ export default function NewBudgetPage() {
                         className="w-full px-2 py-1 border rounded text-black"
                       />
                     </td>
-
                     <td className="py-2">
                       <input
                         type="text"
@@ -412,13 +437,12 @@ export default function NewBudgetPage() {
                           updateItem(
                             index,
                             "quantity",
-                            value === "" ? 0 : Number(value),
+                            value === "" ? 0 : Number(value)
                           );
                         }}
                         className="w-full px-2 py-1 border rounded text-black"
                       />
                     </td>
-
                     <td className="py-2">
                       <input
                         type="text"
@@ -429,13 +453,12 @@ export default function NewBudgetPage() {
                           updateItem(
                             index,
                             "unit_price",
-                            value === "" ? 0 : Number(value),
+                            value === "" ? 0 : Number(value)
                           );
                         }}
                         className="w-full px-2 py-1 border rounded text-black"
                       />
                     </td>
-
                     <td className="py-2">
                       <input
                         type="text"
@@ -446,17 +469,15 @@ export default function NewBudgetPage() {
                           updateItem(
                             index,
                             "discount",
-                            value === "" ? 0 : Number(value),
+                            value === "" ? 0 : Number(value)
                           );
                         }}
                         className="w-full px-2 py-1 border rounded text-black"
                       />
                     </td>
-
-                    <td className="py-2 text-right font-medium text-black">
+                    <td className="py-2 text-right font-medium">
                       R$ {item.total.toFixed(2)}
                     </td>
-
                     <td className="py-2 text-right">
                       <button
                         onClick={() =>
@@ -474,22 +495,16 @@ export default function NewBudgetPage() {
           )}
         </div>
 
-        {/* RESUMO */}
         <div className="bg-white rounded-lg shadow text-black p-6">
-          <h2 className="text-lg font-medium text-black mb-4">Resumo</h2>
-
-          {/* Totais dinâmicos calculados aqui */}
+          <h2 className="text-lg font-medium mb-4">Resumo</h2>
           {(() => {
             const totalParts = items
               .filter((i) => i.type === "part")
               .reduce((sum, i) => sum + i.total, 0);
-
             const totalLabor = items
               .filter((i) => i.type === "service")
               .reduce((sum, i) => sum + i.total, 0);
-
             const totalDiscount = items.reduce((sum, i) => sum + i.discount, 0);
-
             const subtotal = totalParts + totalLabor;
             const totalFinal = subtotal - totalDiscount;
 
@@ -499,34 +514,29 @@ export default function NewBudgetPage() {
                   <span>Total de Peças</span>
                   <span>R$ {totalParts.toFixed(2)}</span>
                 </div>
-
                 <div className="flex justify-between">
                   <span>Total de Mão de Obra</span>
                   <span>R$ {totalLabor.toFixed(2)}</span>
                 </div>
-
                 <div className="flex justify-between">
                   <span>Subtotal</span>
                   <span>R$ {subtotal.toFixed(2)}</span>
                 </div>
-
-                <div className="flex justify-between">
+                <div className="flex justify-between text-red-600">
                   <span>Descontos</span>
-                  <span>R$ {totalDiscount.toFixed(2)}</span>
+                  <span>- R$ {totalDiscount.toFixed(2)}</span>
                 </div>
-
-                <div className="flex justify-between font-semibold border-t pt-2">
+                <div className="flex justify-between font-semibold border-t pt-2 text-xl">
                   <span>Total</span>
                   <span>R$ {totalFinal.toFixed(2)}</span>
                 </div>
               </>
             );
           })()}
-
-          <div className="flex justify-end mt-4">
+          <div className="flex justify-end mt-6">
             <button
               onClick={saveBudget}
-              className="px-4 py-2 bg-gray-800 text-white cursor-pointer rounded-md"
+              className="px-6 py-3 bg-gray-800 text-white cursor-pointer rounded-md font-medium hover:bg-black transition-colors"
             >
               Gerar orçamento
             </button>

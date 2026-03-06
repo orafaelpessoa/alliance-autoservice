@@ -113,7 +113,6 @@ export default function ServiceOrderPage() {
 
   async function handleSave() {
     if (!serviceOrder || !user) return;
-    if (!serviceOrder) return;
     setSaving(true);
 
     try {
@@ -133,7 +132,6 @@ export default function ServiceOrderPage() {
 
       if (error) throw error;
 
-      // Recarrega OS após salvar
       const { data } = await supabase
         .from("service_orders")
         .select(
@@ -227,7 +225,6 @@ export default function ServiceOrderPage() {
   const totalDiscount = Number(serviceOrder.discount);
   const totalFinal = Number(serviceOrder.total);
 
-  // Funções de edição local
   function updateItem(index: number, key: keyof ServiceOrderItem, value: any) {
     setItems((prev) => {
       const copy = [...prev];
@@ -264,8 +261,18 @@ export default function ServiceOrderPage() {
     <main className="min-h-screen bg-gray-100">
       <AppHeader />
 
+      <style jsx global>{`
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type=number] {
+          -moz-appearance: textfield;
+        }
+      `}</style>
+
       <section className="max-w-4xl mx-auto px-4 mt-10 space-y-8">
-        {/* HEADER */}
         <header className="flex flex-wrap gap-4 justify-between items-start">
           <div>
             <h1 className="text-2xl font-semibold text-black">
@@ -314,14 +321,13 @@ export default function ServiceOrderPage() {
 
             <Link
               href={`/dashboard/vehicles/${vehicle.id}`}
-              className="px-4 py-2 rounded-md bg-gray-200 text-black hover:bg-gray-300"
+              className="px-4 py-2 rounded-md bg-gray-200 text-black hover:bg-gray-300 cursor-pointer"
             >
               Voltar para veículo
             </Link>
           </div>
         </header>
 
-        {/* CLIENT / VEHICLE */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="grid md:grid-cols-2 gap-4 text-black">
             <div>
@@ -338,7 +344,6 @@ export default function ServiceOrderPage() {
           </div>
         </div>
 
-        {/* ITEMS */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-medium text-black mb-4">
             Itens da Ordem de Serviço
@@ -348,13 +353,13 @@ export default function ServiceOrderPage() {
             <div className="flex gap-2 mb-4">
               <button
                 onClick={addPart}
-                className="px-3 py-1 rounded bg-gray-200 text-black hover:bg-gray-300"
+                className="px-3 py-1 rounded bg-gray-200 text-black hover:bg-gray-300 cursor-pointer"
               >
                 + Peça
               </button>
               <button
                 onClick={addService}
-                className="px-3 py-1 rounded bg-gray-200 text-black hover:bg-gray-300"
+                className="px-3 py-1 rounded bg-gray-200 text-black hover:bg-gray-300 cursor-pointer"
               >
                 + Serviço
               </button>
@@ -368,7 +373,7 @@ export default function ServiceOrderPage() {
                 <th>Qtd</th>
                 <th>Preço</th>
                 <th className="text-right">Total</th>
-                {editing && <th>Ações</th>}
+                {editing && <th className="text-center">Ações</th>}
               </tr>
             </thead>
 
@@ -393,7 +398,7 @@ export default function ServiceOrderPage() {
                     {editing ? (
                       <input
                         type="number"
-                        value={item.quantity}
+                        value={item.quantity === 0 ? "" : item.quantity}
                         onChange={(e) =>
                           updateItem(index, "quantity", Number(e.target.value))
                         }
@@ -407,7 +412,7 @@ export default function ServiceOrderPage() {
                     {editing ? (
                       <input
                         type="number"
-                        value={item.unit_price}
+                        value={item.unit_price === 0 ? "" : item.unit_price}
                         onChange={(e) =>
                           updateItem(
                             index,
@@ -425,10 +430,10 @@ export default function ServiceOrderPage() {
                     R$ {(item.quantity * item.unit_price).toFixed(2)}
                   </td>
                   {editing && (
-                    <td>
+                    <td className="text-center">
                       <button
                         onClick={() => removeItem(index)}
-                        className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                        className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 cursor-pointer"
                       >
                         Remover
                       </button>
@@ -440,7 +445,6 @@ export default function ServiceOrderPage() {
           </table>
         </div>
 
-        {/* SUMMARY */}
         <div className="bg-white rounded-lg shadow p-6 space-y-2 text-black">
           <div className="flex justify-between">
             <span>Total de Peças</span>

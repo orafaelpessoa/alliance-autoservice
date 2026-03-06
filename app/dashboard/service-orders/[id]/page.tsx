@@ -24,10 +24,12 @@ export default function ServiceOrderPage() {
   const [loading, setLoading] = useState(true);
   const [serviceOrder, setServiceOrder] = useState<any>(null);
   const [items, setItems] = useState<ServiceOrderItem[]>([]);
+  const [initialItems, setInitialItems] = useState<ServiceOrderItem[]>([]);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
+  // Busca usuário logado
   useEffect(() => {
     const getUser = async () => {
       const { data, error } = await supabase.auth.getUser();
@@ -35,13 +37,12 @@ export default function ServiceOrderPage() {
         console.error("Erro ao pegar usuário logado", error);
         return;
       }
-      if (data.user) {
-        setUser({ id: data.user.id });
-      }
+      if (data.user) setUser({ id: data.user.id });
     };
     getUser();
   }, []);
 
+  // Carrega OS
   useEffect(() => {
     if (!serviceId) return;
 
@@ -74,7 +75,7 @@ export default function ServiceOrderPage() {
             unit_price,
             total
           )
-        `,
+        `
         )
         .eq("id", serviceId)
         .single();
@@ -92,25 +93,24 @@ export default function ServiceOrderPage() {
     loadServiceOrder();
   }, [serviceId, router]);
 
+  // PDF
   async function handleDownloadPdf() {
     if (!serviceOrder) return;
-
     setDownloading(true);
     try {
       const blob = await createServiceOrderPdfBlob(serviceOrder);
       const url = URL.createObjectURL(blob);
-
       const a = document.createElement("a");
       a.href = url;
       a.download = `os-${serviceOrder.id}.pdf`;
       a.click();
-
       URL.revokeObjectURL(url);
     } finally {
       setDownloading(false);
     }
   }
 
+  // Salvar alterações
   async function handleSave() {
     if (!serviceOrder || !user) return;
     setSaving(true);
@@ -127,11 +127,12 @@ export default function ServiceOrderPage() {
       const { error } = await supabase.rpc("update_service_order", {
         p_service_order_id: serviceOrder.id,
         p_items: jsonItems,
-        p_created_by: user?.id,
+        p_created_by: user.id,
       });
 
       if (error) throw error;
 
+      // Recarrega OS após salvar
       const { data } = await supabase
         .from("service_orders")
         .select(
@@ -160,7 +161,7 @@ export default function ServiceOrderPage() {
             unit_price,
             total
           )
-        `,
+        `
         )
         .eq("id", serviceOrder.id)
         .single();
@@ -176,17 +177,17 @@ export default function ServiceOrderPage() {
     }
   }
 
+  // Cancelar OS
   async function handleCancel() {
-    if (!serviceOrder) return;
+    if (!serviceOrder || !user) return;
     const confirmCancel = confirm(
-      "Deseja realmente cancelar esta ordem de serviço?",
+      "Deseja realmente cancelar esta ordem de serviço?"
     );
     if (!confirmCancel) return;
 
     try {
       const { error } = await supabase.rpc("cancel_service_order", {
         p_service_order_id: serviceOrder.id,
-        p_created_by: user?.id,
       });
       if (error) throw error;
       router.push(`/dashboard/vehicles/${serviceOrder.vehicle.id}`);
@@ -225,6 +226,29 @@ export default function ServiceOrderPage() {
   const totalDiscount = Number(serviceOrder.discount);
   const totalFinal = Number(serviceOrder.total);
 
+  // Detecção de alterações
+  function startEditing() {
+    setInitialItems(items.map((i) => ({ ...i })));
+    setEditing(true);
+  }
+
+  function hasChanges(): boolean {
+    if (items.length !== initialItems.length) return true;
+    for (let i = 0; i < items.length; i++) {
+      const a = items[i];
+      const b = initialItems[i];
+      if (
+        a.part_id !== b.part_id ||
+        a.type !== b.type ||
+        a.description !== b.description ||
+        a.quantity !== b.quantity ||
+        a.unit_price !== b.unit_price
+      )
+        return true;
+    }
+    return false;
+  }
+
   function updateItem(index: number, key: keyof ServiceOrderItem, value: any) {
     setItems((prev) => {
       const copy = [...prev];
@@ -247,13 +271,7 @@ export default function ServiceOrderPage() {
   function addPart() {
     setItems((prev) => [
       ...prev,
-      {
-        type: "part",
-        part_id: "",
-        description: "",
-        quantity: 1,
-        unit_price: 0,
-      },
+      { type: "part", part_id: "", description: "", quantity: 1, unit_price: 0 },
     ]);
   }
 
@@ -287,7 +305,7 @@ export default function ServiceOrderPage() {
           <div className="flex gap-2 flex-wrap">
             {!editing && (
               <button
-                onClick={() => setEditing(true)}
+                onClick={startEditing}
                 className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
               >
                 Editar OS
@@ -297,7 +315,7 @@ export default function ServiceOrderPage() {
             {editing && (
               <button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={!hasChanges() || saving}
                 className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 cursor-pointer disabled:opacity-50"
               >
                 {saving ? "Salvando..." : "Salvar Alterações"}

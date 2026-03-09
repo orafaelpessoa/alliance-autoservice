@@ -105,36 +105,45 @@ export default function ServiceOrderPage() {
   }
 
   async function handleSave() {
-    if (!serviceOrder || !user) return;
-    setSaving(true);
+  if (!serviceOrder || !user) return;
+  setSaving(true);
 
-    try {
-      const jsonItems = items.map((i) => ({
-        id: i.id || null,
-        part_id: i.part_id || null,
-        description: i.description,
-        quantity: i.quantity,
-        unit_price: i.unit_price,
-        type: i.type,
-      }));
+  try {
+    // 1. Primeiro atualizamos o desconto na tabela service_orders
+    const { error: discountError } = await supabase
+      .from("service_orders")
+      .update({ discount: Number(serviceOrder.discount || 0) })
+      .eq("id", serviceOrder.id);
 
-      const { error } = await supabase.rpc("update_service_order", {
-        p_service_order_id: serviceOrder.id,
-        p_items: jsonItems,
-        p_created_by: user.id,
-      });
+    if (discountError) throw discountError;
 
-      if (error) throw error;
+    // 2. Agora processamos os itens e o estoque via RPC
+    const jsonItems = items.map((i) => ({
+      id: i.id || null,
+      part_id: i.part_id || null,
+      description: i.description,
+      quantity: i.quantity,
+      unit_price: i.unit_price,
+      type: i.type,
+    }));
 
-      await loadServiceOrder();
-      await loadStock();
-      setEditing(false);
-    } catch (err: any) {
-      alert(err.message || "Erro ao salvar OS");
-    } finally {
-      setSaving(false);
-    }
+    const { error } = await supabase.rpc("update_service_order", {
+      p_service_order_id: serviceOrder.id,
+      p_items: jsonItems,
+      p_created_by: user.id,
+    });
+
+    if (error) throw error;
+
+    await loadServiceOrder();
+    await loadStock();
+    setEditing(false);
+  } catch (err: any) {
+    alert(err.message || "Erro ao salvar OS");
+  } finally {
+    setSaving(false);
   }
+}
 
   async function handleCancel() {
     if (!serviceOrder || !user) return;
@@ -310,14 +319,14 @@ export default function ServiceOrderPage() {
             <button
               onClick={handleDownloadPdf}
               disabled={downloading}
-              className="px-4 py-2 rounded-md bg-black text-white hover:bg-gray-800 disabled:opacity-50"
+              className="px-4 py-2 rounded-md bg-black text-white cursor-pointer hover:bg-gray-800 disabled:opacity-50"
             >
               {downloading ? "Gerando PDF..." : "Baixar PDF"}
             </button>
             {serviceOrder.status !== "canceled" && (
               <button
                 onClick={handleCancel}
-                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700"
+                className="px-4 py-2 rounded-md bg-red-600 cursor-pointer text-white hover:bg-red-700"
               >
                 Cancelar OS
               </button>

@@ -72,10 +72,12 @@ export default function VehiclePage() {
   async function loadVehicle() {
     const { data } = await supabase
       .from("vehicles")
-      .select(`
+      .select(
+        `
         id, plate, brand, model, year,
         client:clients ( id, name, phone )
-      `)
+      `,
+      )
       .eq("id", vehicleId)
       .single();
 
@@ -87,7 +89,9 @@ export default function VehiclePage() {
       brand: data.brand,
       model: data.model,
       year: data.year,
-      client: Array.isArray(data.client) ? (data.client[0] ?? null) : ((data.client as any) ?? null),
+      client: Array.isArray(data.client)
+        ? (data.client[0] ?? null)
+        : ((data.client as any) ?? null),
     });
   }
 
@@ -102,20 +106,24 @@ export default function VehiclePage() {
   }
 
   async function loadServices() {
-    // IMPORTANTE: Buscando da service_orders onde sua RPC insere
+    // Filtro .neq("status", "canceled") adicionado para ocultar as canceladas
     const { data } = await supabase
       .from("service_orders")
-      .select(`
-        id, 
-        created_at, 
-        budget_id,
-        total,
-        budgets (
-          total,
-          budget_items ( id, description )
-        )
-      `)
+      .select(
+        `
+        id, 
+        created_at, 
+        budget_id,
+        total,
+        status,
+        budgets (
+          total,
+          budget_items ( id, description )
+        )
+      `,
+      )
       .eq("vehicle_id", vehicleId)
+      .neq("status", "canceled") // Esta linha resolve o seu problema
       .order("created_at", { ascending: false });
 
     if (data) {
@@ -140,13 +148,18 @@ export default function VehiclePage() {
 
   async function handleRegisterService(budgetId: string) {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const { data, error } = await supabase.rpc("register_budget_as_service_order", {
-        p_budget_id: budgetId,
-        p_user_id: user.id,
-      });
+      const { data, error } = await supabase.rpc(
+        "register_budget_as_service_order",
+        {
+          p_budget_id: budgetId,
+          p_user_id: user.id,
+        },
+      );
 
       if (error) throw error;
 
@@ -154,7 +167,11 @@ export default function VehiclePage() {
       await Promise.all([loadBudgets(), loadServices()]);
       setShowModal(false);
     } catch (err: any) {
-      alert(err.message.includes("já convertido") ? "Este orçamento já foi registrado como OS." : "Erro ao registrar serviço.");
+      alert(
+        err.message.includes("já convertido")
+          ? "Este orçamento já foi registrado como OS."
+          : "Erro ao registrar serviço.",
+      );
     }
   }
 
@@ -171,19 +188,33 @@ export default function VehiclePage() {
 
       <section className="max-w-5xl mx-auto mt-8 space-y-6 px-4 pb-10">
         <div className="bg-white p-6 rounded-md shadow">
-          <h2 className="text-lg font-semibold text-black mb-2">Informações do Veículo</h2>
-          <p className="text-black"><strong>Placa:</strong> {vehicle.plate}</p>
-          <p className="text-black"><strong>Modelo:</strong> {vehicle.brand} {vehicle.model}</p>
-          <p className="text-black"><strong>Ano:</strong> {vehicle.year}</p>
+          <h2 className="text-lg font-semibold text-black mb-2">
+            Informações do Veículo
+          </h2>
+          <p className="text-black">
+            <strong>Placa:</strong> {vehicle.plate}
+          </p>
+          <p className="text-black">
+            <strong>Modelo:</strong> {vehicle.brand} {vehicle.model}
+          </p>
+          <p className="text-black">
+            <strong>Ano:</strong> {vehicle.year}
+          </p>
         </div>
 
         <div className="bg-white p-6 rounded-md shadow">
-          <h2 className="text-lg font-semibold text-black mb-2">Cliente Vinculado</h2>
+          <h2 className="text-lg font-semibold text-black mb-2">
+            Cliente Vinculado
+          </h2>
           {vehicle.client ? (
             <>
-              <p className="text-black"><strong>Nome:</strong> {vehicle.client.name}</p>
+              <p className="text-black">
+                <strong>Nome:</strong> {vehicle.client.name}
+              </p>
               {vehicle.client.phone && (
-                <p className="text-black"><strong>Telefone:</strong> {vehicle.client.phone}</p>
+                <p className="text-black">
+                  <strong>Telefone:</strong> {vehicle.client.phone}
+                </p>
               )}
             </>
           ) : (
@@ -193,7 +224,9 @@ export default function VehiclePage() {
 
         <div className="flex gap-3">
           <button
-            onClick={() => router.push(`/dashboard/budgets/new?vehicleId=${vehicle.id}`)}
+            onClick={() =>
+              router.push(`/dashboard/budgets/new?vehicleId=${vehicle.id}`)
+            }
             className="bg-yellow-300 text-black px-4 py-2 rounded-md cursor-pointer hover:bg-yellow-400 font-medium"
           >
             Fazer orçamento
@@ -208,7 +241,9 @@ export default function VehiclePage() {
         </div>
 
         <div className="bg-white p-6 rounded-md shadow">
-          <h2 className="text-lg font-semibold text-black mb-4">Serviços Executados</h2>
+          <h2 className="text-lg font-semibold text-black mb-4">
+            Serviços Executados
+          </h2>
 
           {services.length === 0 && (
             <p className="text-black">Nenhum serviço executado.</p>
@@ -219,21 +254,32 @@ export default function VehiclePage() {
               if (!s.budgets) return null;
 
               return (
-                <div key={s.id} className="text-black border-b pb-4 flex justify-between items-start">
+                <div
+                  key={s.id}
+                  className="text-black border-b pb-4 flex justify-between items-start"
+                >
                   <div className="space-y-2">
-                    <p className="font-semibold text-blue-700">Ordem de Serviço #{s.id.slice(0,8)}</p>
-                    <p className="text-sm">Data: {new Date(s.created_at).toLocaleDateString("pt-BR")}</p>
+                    <p className="font-semibold text-blue-700">
+                      Ordem de Serviço #{s.id.slice(0, 8)}
+                    </p>
+                    <p className="text-sm">
+                      Data: {new Date(s.created_at).toLocaleDateString("pt-BR")}
+                    </p>
                     <ul className="list-disc ml-4 text-sm">
                       {s.budgets.budget_items.map((item) => (
                         <li key={item.id}>{item.description}</li>
                       ))}
                     </ul>
-                    <p className="font-semibold text-sm">{formatMoney(s.total)}</p>
+                    <p className="font-semibold text-sm">
+                      {formatMoney(s.total)}
+                    </p>
                   </div>
-                  
+
                   {/* BOTÃO EDITAR OS ADICIONADO AQUI */}
                   <button
-                    onClick={() => router.push(`/dashboard/service-orders/${s.id}`)}
+                    onClick={() =>
+                      router.push(`/dashboard/service-orders/${s.id}`)
+                    }
                     className="text-sm bg-gray-100 border border-gray-300 px-3 py-1 cursor-pointer rounded hover:bg-gray-200 text-black font-medium"
                   >
                     Editar OS
@@ -248,21 +294,36 @@ export default function VehiclePage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-md w-full max-w-lg">
-            <h3 className="text-lg font-semibold text-black mb-4">Selecionar orçamento</h3>
+            <h3 className="text-lg font-semibold text-black mb-4">
+              Selecionar orçamento
+            </h3>
 
             <ul className="space-y-3 max-h-80 overflow-auto">
               {budgets.map((b) => {
                 const used = usedBudgetIds.includes(b.id);
 
                 return (
-                  <li key={b.id} className="border p-3 rounded-md flex justify-between items-center text-black bg-white">
+                  <li
+                    key={b.id}
+                    className="border p-3 rounded-md flex justify-between items-center text-black bg-white"
+                  >
                     <div className="text-black text-sm space-y-1 max-w-xs">
-                      <p className={`font-semibold ${used ? 'text-gray-400' : 'text-black'}`}>
-                        {used ? "Serviço já registrado" : "Orçamento disponível"}
+                      <p
+                        className={`font-semibold ${used ? "text-gray-400" : "text-black"}`}
+                      >
+                        {used
+                          ? "Serviço já registrado"
+                          : "Orçamento disponível"}
                       </p>
-                      <p className="text-gray-500">Data: {new Date(b.created_at).toLocaleDateString("pt-BR")}</p>
+                      <p className="text-gray-500">
+                        Data:{" "}
+                        {new Date(b.created_at).toLocaleDateString("pt-BR")}
+                      </p>
                       <p className="text-xs italic text-gray-400">
-                        {b.budget_items.slice(0, 2).map(i => i.description).join(", ")}
+                        {b.budget_items
+                          .slice(0, 2)
+                          .map((i) => i.description)
+                          .join(", ")}
                         {b.budget_items.length > 2 && "..."}
                       </p>
                       <p className="font-semibold">{formatMoney(b.total)}</p>

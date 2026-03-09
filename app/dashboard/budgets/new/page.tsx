@@ -277,16 +277,9 @@ export default function NewBudgetPage() {
         discount: item.discount,
         total: item.total,
       });
-
-      if (item.part_id) {
-        await supabase.from("stock_movements").insert({
-          part_id: item.part_id,
-          type: "out",
-          quantity: item.quantity,
-          reason: `Orçamento #${budget.id}`,
-          created_by: user?.id,
-        });
-      }
+      
+      // O bloco de "stock_movements" que ficava aqui foi removido.
+      // Agora o estoque só baixa quando o orçamento for convertido em OS no backend.
     }
 
     router.push(`/dashboard/budgets/${budget.id}`);

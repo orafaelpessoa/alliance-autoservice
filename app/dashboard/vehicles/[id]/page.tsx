@@ -32,7 +32,6 @@ type Budget = {
   budget_items: BudgetItem[];
 };
 
-// Alterado para bater com a estrutura da tabela service_orders
 type ServiceOrder = {
   id: string;
   created_at: string;
@@ -54,9 +53,10 @@ export default function VehiclePage() {
 
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [services, setServices] = useState<ServiceOrder[]>([]); // Mudado para ServiceOrder
+  const [services, setServices] = useState<ServiceOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showBudgetsModal, setShowBudgetsModal] = useState(false); // Novo Estado
 
   useEffect(() => {
     if (!vehicleId) return;
@@ -72,12 +72,7 @@ export default function VehiclePage() {
   async function loadVehicle() {
     const { data } = await supabase
       .from("vehicles")
-      .select(
-        `
-        id, plate, brand, model, year,
-        client:clients ( id, name, phone )
-      `,
-      )
+      .select(`id, plate, brand, model, year, client:clients ( id, name, phone )`)
       .eq("id", vehicleId)
       .single();
 
@@ -89,9 +84,7 @@ export default function VehiclePage() {
       brand: data.brand,
       model: data.model,
       year: data.year,
-      client: Array.isArray(data.client)
-        ? (data.client[0] ?? null)
-        : ((data.client as any) ?? null),
+      client: Array.isArray(data.client) ? data.client[0] : (data.client as any),
     });
   }
 
@@ -106,24 +99,11 @@ export default function VehiclePage() {
   }
 
   async function loadServices() {
-    // Filtro .neq("status", "canceled") adicionado para ocultar as canceladas
     const { data } = await supabase
       .from("service_orders")
-      .select(
-        `
-        id, 
-        created_at, 
-        budget_id,
-        total,
-        status,
-        budgets (
-          total,
-          budget_items ( id, description )
-        )
-      `,
-      )
+      .select(`id, created_at, budget_id, total, status, budgets ( total, budget_items ( id, description ) )`)
       .eq("vehicle_id", vehicleId)
-      .neq("status", "canceled") // Esta linha resolve o seu problema
+      .neq("status", "canceled")
       .order("created_at", { ascending: false });
 
     if (data) {
@@ -134,48 +114,32 @@ export default function VehiclePage() {
         total: item.total,
         budgets: Array.isArray(item.budgets) ? item.budgets[0] : item.budgets,
       }));
-
       setServices(formattedServices);
     }
   }
 
   function formatMoney(value: number) {
-    return value.toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    });
+    return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   }
 
   async function handleRegisterService(budgetId: string) {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const { data, error } = await supabase.rpc(
-        "register_budget_as_service_order",
-        {
-          p_budget_id: budgetId,
-          p_user_id: user.id,
-        },
-      );
+      const { error } = await supabase.rpc("register_budget_as_service_order", {
+        p_budget_id: budgetId,
+        p_user_id: user.id,
+      });
 
       if (error) throw error;
-
-      // Recarrega tudo para atualizar o layout e o modal
       await Promise.all([loadBudgets(), loadServices()]);
       setShowModal(false);
     } catch (err: any) {
-      alert(
-        err.message.includes("já convertido")
-          ? "Este orçamento já foi registrado como OS."
-          : "Erro ao registrar serviço.",
-      );
+      alert(err.message.includes("já convertido") ? "Este orçamento já foi registrado como OS." : "Erro ao registrar serviço.");
     }
   }
 
-  // Lista de IDs de orçamentos que já possuem uma OS vinculada
   const usedBudgetIds = services.map((s) => s.budget_id);
 
   if (loading || !vehicle) {
@@ -187,49 +151,41 @@ export default function VehiclePage() {
       <AppHeader />
 
       <section className="max-w-5xl mx-auto mt-8 space-y-6 px-4 pb-10">
+        {/* INFO VEICULO */}
         <div className="bg-white p-6 rounded-md shadow">
-          <h2 className="text-lg font-semibold text-black mb-2">
-            Informações do Veículo
-          </h2>
-          <p className="text-black">
-            <strong>Placa:</strong> {vehicle.plate}
-          </p>
-          <p className="text-black">
-            <strong>Modelo:</strong> {vehicle.brand} {vehicle.model}
-          </p>
-          <p className="text-black">
-            <strong>Ano:</strong> {vehicle.year}
-          </p>
+          <h2 className="text-lg font-semibold text-black mb-2">Informações do Veículo</h2>
+          <p className="text-black"><strong>Placa:</strong> {vehicle.plate}</p>
+          <p className="text-black"><strong>Modelo:</strong> {vehicle.brand} {vehicle.model}</p>
+          <p className="text-black"><strong>Ano:</strong> {vehicle.year}</p>
         </div>
 
+        {/* CLIENTE */}
         <div className="bg-white p-6 rounded-md shadow">
-          <h2 className="text-lg font-semibold text-black mb-2">
-            Cliente Vinculado
-          </h2>
+          <h2 className="text-lg font-semibold text-black mb-2">Cliente Vinculado</h2>
           {vehicle.client ? (
             <>
-              <p className="text-black">
-                <strong>Nome:</strong> {vehicle.client.name}
-              </p>
-              {vehicle.client.phone && (
-                <p className="text-black">
-                  <strong>Telefone:</strong> {vehicle.client.phone}
-                </p>
-              )}
+              <p className="text-black"><strong>Nome:</strong> {vehicle.client.name}</p>
+              {vehicle.client.phone && <p className="text-black"><strong>Telefone:</strong> {vehicle.client.phone}</p>}
             </>
           ) : (
             <p className="text-black">Nenhum cliente vinculado.</p>
           )}
         </div>
 
-        <div className="flex gap-3">
+        {/* BOTÕES DE AÇÃO */}
+        <div className="flex gap-3 flex-wrap">
           <button
-            onClick={() =>
-              router.push(`/dashboard/budgets/new?vehicleId=${vehicle.id}`)
-            }
+            onClick={() => router.push(`/dashboard/budgets/new?vehicleId=${vehicle.id}`)}
             className="bg-yellow-300 text-black px-4 py-2 rounded-md cursor-pointer hover:bg-yellow-400 font-medium"
           >
             Fazer orçamento
+          </button>
+
+          <button
+            onClick={() => setShowBudgetsModal(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md cursor-pointer hover:bg-blue-700 font-medium"
+          >
+            Ver Orçamentos
           </button>
 
           <button
@@ -240,117 +196,108 @@ export default function VehiclePage() {
           </button>
         </div>
 
+        {/* SERVIÇOS EXECUTADOS (OS) */}
         <div className="bg-white p-6 rounded-md shadow">
-          <h2 className="text-lg font-semibold text-black mb-4">
-            Serviços Executados
-          </h2>
-
-          {services.length === 0 && (
-            <p className="text-black">Nenhum serviço executado.</p>
-          )}
-
+          <h2 className="text-lg font-semibold text-black mb-4">Serviços Executados</h2>
+          {services.length === 0 && <p className="text-black text-sm">Nenhum serviço executado.</p>}
           <div className="space-y-4">
-            {services.map((s) => {
-              if (!s.budgets) return null;
-
-              return (
-                <div
-                  key={s.id}
-                  className="text-black border-b pb-4 flex justify-between items-start"
-                >
-                  <div className="space-y-2">
-                    <p className="font-semibold text-blue-700">
-                      Ordem de Serviço #{s.id.slice(0, 8)}
-                    </p>
-                    <p className="text-sm">
-                      Data: {new Date(s.created_at).toLocaleDateString("pt-BR")}
-                    </p>
-                    <ul className="list-disc ml-4 text-sm">
-                      {s.budgets.budget_items.map((item) => (
-                        <li key={item.id}>{item.description}</li>
-                      ))}
-                    </ul>
-                    <p className="font-semibold text-sm">
-                      {formatMoney(s.total)}
-                    </p>
-                  </div>
-
-                  {/* BOTÃO EDITAR OS ADICIONADO AQUI */}
-                  <button
-                    onClick={() =>
-                      router.push(`/dashboard/service-orders/${s.id}`)
-                    }
-                    className="text-sm bg-gray-100 border border-gray-300 px-3 py-1 cursor-pointer rounded hover:bg-gray-200 text-black font-medium"
-                  >
-                    Editar OS
-                  </button>
+            {services.map((s) => s.budgets && (
+              <div key={s.id} className="text-black border-b pb-4 flex justify-between items-start">
+                <div className="space-y-2">
+                  <p className="font-semibold text-blue-700">Ordem de Serviço #{s.id.slice(0, 8)}</p>
+                  <p className="text-sm">Data: {new Date(s.created_at).toLocaleDateString("pt-BR")}</p>
+                  <ul className="list-disc ml-4 text-sm text-gray-700">
+                    {s.budgets.budget_items.map((item) => (
+                      <li key={item.id}>{item.description}</li>
+                    ))}
+                  </ul>
+                  <p className="font-semibold text-sm">{formatMoney(s.total)}</p>
                 </div>
-              );
-            })}
+                <button
+                  onClick={() => router.push(`/dashboard/service-orders/${s.id}`)}
+                  className="text-sm bg-gray-100 border border-gray-300 px-3 py-1 cursor-pointer rounded hover:bg-gray-200 text-black font-medium"
+                >
+                  Editar OS
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-md w-full max-w-lg">
-            <h3 className="text-lg font-semibold text-black mb-4">
-              Selecionar orçamento
-            </h3>
+      {/* MODAL: VER ORÇAMENTOS (HISTÓRICO) */}
+      {showBudgetsModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white p-6 rounded-md w-full max-w-2xl shadow-xl">
+            <h3 className="text-lg font-bold text-black mb-4 border-b pb-2">Histórico de Orçamentos</h3>
+            
+            {budgets.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">Nenhum orçamento encontrado para este veículo.</p>
+            ) : (
+              <ul className="space-y-3 max-h-[60vh] overflow-auto pr-2">
+                {budgets.map((b) => (
+                  <li key={b.id} className="border p-4 rounded-md bg-gray-50 flex justify-between items-center group">
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-tight">#{b.id.slice(0,8)}</p>
+                      <p className="text-sm font-medium text-black">Data: {new Date(b.created_at).toLocaleDateString("pt-BR")}</p>
+                      <p className="text-xs text-gray-600 mt-1 italic">
+                        {b.budget_items.slice(0, 3).map(i => i.description).join(", ")}
+                        {b.budget_items.length > 3 && "..."}
+                      </p>
+                      <p className="text-sm font-bold mt-1 text-green-700">{formatMoney(b.total)}</p>
+                    </div>
+                    <button
+                      onClick={() => router.push(`/dashboard/budgets/${b.id}`)}
+                      className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-gray-800 cursor-pointer transition-colors"
+                    >
+                      Abrir
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
 
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setShowBudgetsModal(false)}
+                className="bg-gray-200 text-black px-6 py-2 rounded-md font-medium hover:bg-gray-300 cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REGISTRAR SERVIÇO (FILTRADO) */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white p-6 rounded-md w-full max-w-lg shadow-xl">
+            <h3 className="text-lg font-semibold text-black mb-4">Selecionar orçamento para OS</h3>
             <ul className="space-y-3 max-h-80 overflow-auto">
               {budgets.map((b) => {
                 const used = usedBudgetIds.includes(b.id);
-
                 return (
-                  <li
-                    key={b.id}
-                    className="border p-3 rounded-md flex justify-between items-center text-black bg-white"
-                  >
-                    <div className="text-black text-sm space-y-1 max-w-xs">
-                      <p
-                        className={`font-semibold ${used ? "text-gray-400" : "text-black"}`}
-                      >
-                        {used
-                          ? "Serviço já registrado"
-                          : "Orçamento disponível"}
+                  <li key={b.id} className="border p-3 rounded-md flex justify-between items-center bg-white">
+                    <div className="text-sm space-y-1">
+                      <p className={`font-semibold ${used ? "text-gray-400" : "text-black"}`}>
+                        {used ? "Convertido em OS" : "Orçamento disponível"}
                       </p>
-                      <p className="text-gray-500">
-                        Data:{" "}
-                        {new Date(b.created_at).toLocaleDateString("pt-BR")}
-                      </p>
-                      <p className="text-xs italic text-gray-400">
-                        {b.budget_items
-                          .slice(0, 2)
-                          .map((i) => i.description)
-                          .join(", ")}
-                        {b.budget_items.length > 2 && "..."}
-                      </p>
-                      <p className="font-semibold">{formatMoney(b.total)}</p>
+                      <p className="text-gray-500 text-xs">{new Date(b.created_at).toLocaleDateString("pt-BR")}</p>
+                      <p className="font-bold text-sm">{formatMoney(b.total)}</p>
                     </div>
-
                     <button
                       disabled={used}
                       onClick={() => handleRegisterService(b.id)}
-                      className={`px-3 py-1 rounded-md text-white font-medium ${
-                        used
-                          ? "bg-gray-300 cursor-not-allowed"
-                          : "bg-green-600 hover:bg-green-700 cursor-pointer"
-                      }`}
+                      className={`px-3 py-1 rounded-md text-white text-xs font-bold ${used ? "bg-gray-300 cursor-not-allowed" : "bg-green-600 hover:bg-green-700 cursor-pointer"}`}
                     >
-                      {used ? "Já Utilizado" : "Registrar"}
+                      {used ? "Utilizado" : "Registrar OS"}
                     </button>
                   </li>
                 );
               })}
             </ul>
-
-            <button
-              onClick={() => setShowModal(false)}
-              className="mt-4 text-black underline cursor-pointer"
-            >
-              Cancelar
-            </button>
+            <button onClick={() => setShowModal(false)} className="mt-4 text-sm text-gray-500 underline cursor-pointer">Cancelar</button>
           </div>
         </div>
       )}

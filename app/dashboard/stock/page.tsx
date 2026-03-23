@@ -123,7 +123,7 @@ export default function StockPage() {
 
           <button
             onClick={() => setOpenNewPart(true)}
-            className="bg-yellow-400 text-black px-4 rounded-md shadow hover:bg-yellow-300 flex items-center gap-2 cursor-pointer"
+            className="bg-yellow-300 text-black px-4 rounded-md shadow hover:bg-yellow-400 flex items-center gap-2 cursor-pointer"
           >
             <Plus size={16} />
             Nova peça

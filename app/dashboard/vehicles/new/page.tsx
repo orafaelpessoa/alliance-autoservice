@@ -191,7 +191,7 @@ export default function NewVehiclePage() {
               onClick={() => setMode("existing")}
               className={`px-4 py-2 text-black transition cursor-pointer ${
                 mode === "existing"
-                  ? "bg-yellow-400"
+                  ? "bg-yellow-300"
                   : "bg-white hover:bg-gray-100"
               }`}
             >
@@ -202,7 +202,7 @@ export default function NewVehiclePage() {
               type="button"
               onClick={() => setMode("new")}
               className={`px-4 py-2 text-black transition cursor-pointer ${
-                mode === "new" ? "bg-yellow-400" : "bg-white hover:bg-gray-100"
+                mode === "new" ? "bg-yellow-300" : "bg-white hover:bg-gray-100"
               }`}
             >
               Novo cliente
@@ -257,7 +257,7 @@ export default function NewVehiclePage() {
         <button
           onClick={handleSubmit}
           disabled={loading}
-          className="mt-8 w-full bg-yellow-400 text-black px-4 py-2 cursor-pointer rounded-md shadow hover:bg-yellow-300 disabled:opacity-50"
+          className="mt-8 w-full bg-yellow-300 text-black px-4 py-2 cursor-pointer rounded-md shadow hover:bg-yellow-400 disabled:opacity-50"
         >
           {loading ? "Salvando..." : "Cadastrar veículo"}
         </button>

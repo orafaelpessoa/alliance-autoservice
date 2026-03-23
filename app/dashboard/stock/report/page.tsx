@@ -238,7 +238,7 @@ export default function StockReportPage() {
 
           <button
             onClick={loadReport}
-            className="bg-yellow-400 text-black px-4 py-2 cursor-pointer rounded-md shadow hover:bg-yellow-300 flex items-center gap-2"
+            className="bg-yellow-300 text-black px-4 py-2 cursor-pointer rounded-md shadow hover:bg-yellow-400 flex items-center gap-2"
           >
             <Filter size={16} />
             Filtrar

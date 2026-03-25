@@ -1,3 +1,9 @@
 export default function ServiceOrdersPage() {
-  return <div>Página de Ordens de Serviço</div>;
+  return (
+    <main className="min-h-screen flex items-center justify-center">
+      <p className="text-black">
+        Página de Ordens de Serviço não implementada
+      </p>
+    </main>
+  );
 }

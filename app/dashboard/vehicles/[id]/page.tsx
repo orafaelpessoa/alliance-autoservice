@@ -158,6 +158,19 @@ export default function VehiclePage() {
     }
   }
 
+  const handleDeleteBudget = async (id: string) => {
+    if (!confirm("Deseja realmente deletar este orçamento?")) return;
+
+    const { error } = await supabase.from("budgets").delete().eq("id", id);
+
+    if (error) {
+      alert("Erro ao deletar");
+      return;
+    }
+
+    setBudgets((prev) => prev.filter((b) => b.id !== id));
+  };
+
   const usedBudgetIds = services.map((s) => s.budget_id);
 
   if (loading || !vehicle) {
@@ -296,38 +309,60 @@ export default function VehiclePage() {
               </p>
             ) : (
               <ul className="space-y-3 max-h-[60vh] overflow-auto pr-2">
-                {budgets.map((b) => (
-                  <li
-                    key={b.id}
-                    className="border p-4 rounded-md bg-gray-50 flex justify-between items-center group"
-                  >
-                    <div>
-                      <p className="text-xs font-bold text-black uppercase tracking-tight">
-                        #{b.id.slice(0, 8)}
-                      </p>
-                      <p className="text-sm text-black font-medium text-black">
-                        Data:{" "}
-                        {new Date(b.created_at).toLocaleDateString("pt-BR")}
-                      </p>
-                      <p className="text-xs text-gray-600 mt-1 italic">
-                        {b.budget_items
-                          .slice(0, 3)
-                          .map((i) => i.description)
-                          .join(", ")}
-                        {b.budget_items.length > 3 && "..."}
-                      </p>
-                      <p className="text-sm font-bold mt-1 text-green-700">
-                        {formatMoney(b.total)}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => router.push(`/dashboard/budgets/${b.id}`)}
-                      className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-gray-800 cursor-pointer transition-colors"
-                    >
-                      Abrir
-                    </button>
-                  </li>
-                ))}
+                {budgets.map((b) => {
+  const isUsed =
+    b.status === "converted" || usedBudgetIds.includes(b.id);
+
+  return (
+    <li
+      key={b.id}
+      className="border p-4 rounded-md bg-gray-50 flex justify-between items-center group"
+    >
+      <div>
+        <p className="text-xs font-bold text-black uppercase tracking-tight">
+          #{b.id.slice(0, 8)}
+        </p>
+        <p className="text-sm text-black font-medium text-black">
+          Data:{" "}
+          {new Date(b.created_at).toLocaleDateString("pt-BR")}
+        </p>
+        <p className="text-xs text-gray-600 mt-1 italic">
+          {b.budget_items
+            .slice(0, 3)
+            .map((i) => i.description)
+            .join(", ")}
+          {b.budget_items.length > 3 && "..."}
+        </p>
+        <p className="text-sm font-bold mt-1 text-green-700">
+          {formatMoney(b.total)}
+        </p>
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={() =>
+            router.push(`/dashboard/budgets/${b.id}`)
+          }
+          className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-gray-800 cursor-pointer transition-colors"
+        >
+          Abrir
+        </button>
+
+        <button
+          disabled={isUsed}
+          onClick={() => handleDeleteBudget(b.id)}
+          className={`px-4 py-2 rounded text-sm font-medium text-white transition-colors ${
+            isUsed
+              ? "bg-gray-300 cursor-not-allowed opacity-50"
+              : "bg-red-600 hover:bg-red-700 cursor-pointer"
+          }`}
+        >
+          Deletar
+        </button>
+      </div>
+    </li>
+  );
+})}
               </ul>
             )}
 

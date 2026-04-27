@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { Search, Plus, Car, Package } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
+import { Zap } from "lucide-react";
 
 type SearchResult = {
   id: string;
@@ -109,7 +110,8 @@ export default function DashboardPage() {
     // 3️⃣ Lembretes de revisão (Query com JOIN para garantir que os dados apareçam)
     const { data: remindersData } = await supabase
       .from("service_reminders")
-      .select(`
+      .select(
+        `
         id,
         reminder_date,
         service_orders (
@@ -123,14 +125,15 @@ export default function DashboardPage() {
             )
           )
         )
-      `)
+      `,
+      )
       .eq("notified", false)
       .order("reminder_date", { ascending: true })
       .limit(3);
 
     if (vehicles) setRecentVehicles(vehicles);
     if (stock) setRecentStock(stock);
-    
+
     if (remindersData) {
       const formattedReminders = remindersData.map((r: any) => ({
         id: r.id,
@@ -141,7 +144,9 @@ export default function DashboardPage() {
           model: r.service_orders?.vehicles?.model || "",
           customer: {
             id: r.service_orders?.vehicles?.clients?.id || "",
-            name: r.service_orders?.vehicles?.clients?.name || "Cliente não encontrado",
+            name:
+              r.service_orders?.vehicles?.clients?.name ||
+              "Cliente não encontrado",
           },
         },
       }));
@@ -176,7 +181,9 @@ export default function DashboardPage() {
           <div className="max-w-xl mx-auto bg-white mt-2 rounded-md shadow divide-y">
             {loading && <p className="p-4 text-black text-sm">Buscando...</p>}
             {!loading && results.length === 0 && (
-              <p className="p-4 text-black text-sm">Nenhum veículo encontrado</p>
+              <p className="p-4 text-black text-sm">
+                Nenhum veículo encontrado
+              </p>
             )}
             {results.map((item) => (
               <button
@@ -186,8 +193,12 @@ export default function DashboardPage() {
               >
                 <Car className="w-4 h-4 mt-1 text-black" />
                 <div className="flex flex-col">
-                  <span className="font-medium uppercase text-black">{item.plate}</span>
-                  <span className="text-xs text-black">Cliente: {item.client_name}</span>
+                  <span className="font-medium uppercase text-black">
+                    {item.plate}
+                  </span>
+                  <span className="text-xs text-black">
+                    Cliente: {item.client_name}
+                  </span>
                 </div>
               </button>
             ))}
@@ -208,7 +219,9 @@ export default function DashboardPage() {
                 Ir para veículos
               </button>
             </div>
-            {recentVehicles.length === 0 && <p className="text-sm text-black">Nenhum veículo cadastrado.</p>}
+            {recentVehicles.length === 0 && (
+              <p className="text-sm text-black">Nenhum veículo cadastrado.</p>
+            )}
             {recentVehicles.map((v) => (
               <div
                 key={v.id}
@@ -219,8 +232,12 @@ export default function DashboardPage() {
                   <Car size={18} />
                 </div>
                 <div>
-                  <p className="font-semibold text-black tracking-wide">{v.plate}</p>
-                  <p className="text-sm text-black">{v.brand} {v.model}</p>
+                  <p className="font-semibold text-black tracking-wide">
+                    {v.plate}
+                  </p>
+                  <p className="text-sm text-black">
+                    {v.brand} {v.model}
+                  </p>
                 </div>
               </div>
             ))}
@@ -229,7 +246,9 @@ export default function DashboardPage() {
           {/* ESTOQUE */}
           <div className="bg-white rounded-md shadow p-4">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="font-semibold text-black">Movimentações de estoque</h2>
+              <h2 className="font-semibold text-black">
+                Movimentações de estoque
+              </h2>
               <button
                 onClick={() => router.push("/dashboard/stock")}
                 className="flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-md shadow hover:bg-gray-200 cursor-pointer text-black text-sm"
@@ -238,20 +257,34 @@ export default function DashboardPage() {
                 Ir para estoque
               </button>
             </div>
-            {recentStock.length === 0 && <p className="text-sm text-black">Nenhuma movimentação registrada.</p>}
+            {recentStock.length === 0 && (
+              <p className="text-sm text-black">
+                Nenhuma movimentação registrada.
+              </p>
+            )}
             {recentStock.map((s) => (
-              <div key={s.id} className="flex items-center justify-between p-3 mb-2 rounded-md shadow-sm">
+              <div
+                key={s.id}
+                className="flex items-center justify-between p-3 mb-2 rounded-md shadow-sm"
+              >
                 <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 flex items-center justify-center rounded-full ${s.type === "in" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}`}>
+                  <div
+                    className={`w-10 h-10 flex items-center justify-center rounded-full ${s.type === "in" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}`}
+                  >
                     <Package size={18} />
                   </div>
                   <div>
                     <p className="font-medium text-black">{s.part_name}</p>
-                    {s.reason && <p className="text-xs text-black">{s.reason}</p>}
+                    {s.reason && (
+                      <p className="text-xs text-black">{s.reason}</p>
+                    )}
                   </div>
                 </div>
-                <span className={`font-semibold ${s.type === "in" ? "text-green-600" : "text-red-600"}`}>
-                  {s.type === "in" ? "+" : "-"}{s.quantity}
+                <span
+                  className={`font-semibold ${s.type === "in" ? "text-green-600" : "text-red-600"}`}
+                >
+                  {s.type === "in" ? "+" : "-"}
+                  {s.quantity}
                 </span>
               </div>
             ))}
@@ -259,33 +292,56 @@ export default function DashboardPage() {
         </div>
 
         {/* CTA - AGORA POSICIONADO ACIMA DOS LEMBRETES */}
-        <button
-          onClick={() => router.push("/dashboard/vehicles/new")}
-          className="mt-12 mx-auto flex items-center gap-2 bg-yellow-300 px-6 py-3 rounded-md shadow hover:bg-yellow-400 text-black cursor-pointer"
-        >
-          <Plus size={18} />
-          Cadastrar veículo
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => router.push("/dashboard/vehicles/new")}
+            className="mt-12 mx-auto flex items-center gap-2 bg-yellow-300 px-6 py-3 rounded-md shadow hover:bg-yellow-400 text-black cursor-pointer"
+          >
+            <Plus size={18} />
+            Cadastrar veículo
+          </button>
 
+          <button
+            onClick={() => router.push("/dashboard/budgets/quick-budgets/new")}
+            className="mt-12 mx-auto flex items-center gap-2 bg-yellow-300 px-6 py-3 rounded-md shadow hover:bg-yellow-400 text-black cursor-pointer"
+          >
+            <Zap size={18} />
+            Orçamento Rápido
+          </button>
+
+          <button
+            onClick={() =>
+              router.push("/dashboard/budgets/quick-budgets")
+            }
+            className="mt-12 mx-auto flex items-center gap-2 bg-gray-200 px-6 py-3 rounded-md shadow hover:bg-gray-300 text-black cursor-pointer"
+          >
+            📄 Ver Orçamentos
+          </button>
+        </div>
         {/* LEMBRETES */}
         <div className="mt-12">
-          <h2 className="text-lg font-bold mb-4 text-black">Próximas revisões de óleo</h2>
+          <h2 className="text-lg font-bold mb-4 text-black">
+            Próximas revisões de óleo
+          </h2>
           <ul className="space-y-2">
             {reminders.length === 0 ? (
-               <p className="text-sm text-black">Nenhum lembrete encontrado.</p>
+              <p className="text-sm text-black">Nenhum lembrete encontrado.</p>
             ) : (
               reminders.map((r) => (
                 <li
                   key={r.id}
                   className="p-3 border rounded shadow-sm hover:bg-gray-50 cursor-pointer text-black bg-white"
-                  onClick={() => router.push(`/dashboard/vehicles/${r.vehicle.id}`)}
+                  onClick={() =>
+                    router.push(`/dashboard/vehicles/${r.vehicle.id}`)
+                  }
                 >
                   <div className="font-medium">{r.vehicle.customer.name}</div>
                   <div className="text-sm">
                     {r.vehicle.model} ({r.vehicle.license_plate})
                   </div>
                   <div className="text-xs text-gray-500">
-                    Data: {new Date(r.reminder_date).toLocaleDateString("pt-BR")}
+                    Data:{" "}
+                    {new Date(r.reminder_date).toLocaleDateString("pt-BR")}
                   </div>
                 </li>
               ))

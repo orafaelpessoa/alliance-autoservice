@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Search, Plus, PlusCircle, MinusCircle } from "lucide-react";
+import {
+  Search,
+  Plus,
+  PlusCircle,
+  MinusCircle,
+  Pencil,
+} from "lucide-react";
 import StockMovementModal from "@/components/StockMovementModal";
 import NewPartModal from "@/components/NewPartModal";
 import EditPartPriceModal from "@/components/EditPartPriceModal";
@@ -26,7 +32,9 @@ export default function StockPage() {
   const [openNewPart, setOpenNewPart] = useState(false);
   const [selectedPart, setSelectedPart] = useState<StockItem | null>(null);
   const [movementType, setMovementType] = useState<"in" | "out" | null>(null);
-  const [pricePart, setPricePart] = useState<StockItem | null>(null);
+
+  // Modal de edição (nome + preços)
+  const [editPart, setEditPart] = useState<StockItem | null>(null);
 
   // --- LOAD STOCK ---
   async function loadStock() {
@@ -176,14 +184,15 @@ export default function StockPage() {
 
                 {/* AÇÕES */}
                 <div className="flex gap-2">
-                  {/* EDITAR PREÇO */}
+                  {/* EDITAR NOME E PREÇOS */}
                   <button
-                    onClick={() => setPricePart(item)}
-                    title="Editar preços"
-                    className="p-2 rounded-md bg-yellow-100 text-yellow-700 hover:bg-yellow-200 cursor-pointer"
+                    onClick={() => setEditPart(item)}
+                    title="Editar peça"
+                    className="p-2 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer"
                   >
-                    💲
+                    <Pencil size={18} />
                   </button>
+
 
                   {/* ENTRADA */}
                   <button
@@ -229,14 +238,14 @@ export default function StockPage() {
         />
       )}
 
-      {/* MODAL EDIÇÃO DE PREÇO */}
-      {pricePart && (
+      {/* MODAL EDIÇÃO */}
+      {editPart && (
         <EditPartPriceModal
           open={true}
-          part={pricePart}
-          onClose={() => setPricePart(null)}
+          part={editPart}
+          onClose={() => setEditPart(null)}
           onSuccess={async () => {
-            setPricePart(null);
+            setEditPart(null);
             await loadStock();
           }}
         />

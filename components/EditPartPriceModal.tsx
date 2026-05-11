@@ -21,6 +21,7 @@ export default function EditPartPriceModal({
   onClose,
   onSuccess,
 }: Props) {
+  const [name, setName] = useState(part.name);
   const [cost, setCost] = useState<number | "">(part.cost);
   const [salePrice, setSalePrice] = useState<number | "">(part.sale_price);
   const [loading, setLoading] = useState(false);
@@ -28,6 +29,7 @@ export default function EditPartPriceModal({
 
   useEffect(() => {
     if (open) {
+      setName(part.name);
       setCost(part.cost);
       setSalePrice(part.sale_price);
       setError(null);
@@ -42,6 +44,11 @@ export default function EditPartPriceModal({
 
   async function handleSave() {
     if (loading) return;
+
+    if (!name.trim()) {
+      setError("Informe o nome da peça.");
+      return;
+    }
 
     if (cost === "" || salePrice === "") {
       setError("Preencha todos os campos.");
@@ -59,13 +66,19 @@ export default function EditPartPriceModal({
     const { error } = await supabase
       .from("parts")
       .update({
+        name: name.trim(),
         cost,
         sale_price: salePrice,
       })
       .eq("id", part.id);
 
     if (error) {
-      setError("Erro ao atualizar preços.");
+      if (error.code === "23505") {
+        setError("Já existe uma peça com esse nome.");
+      } else {
+        setError("Erro ao atualizar a peça.");
+      }
+
       setLoading(false);
       return;
     }
@@ -76,13 +89,23 @@ export default function EditPartPriceModal({
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-md shadow w-full max-w-md p-6">
-        <h2 className="text-lg font-bold mb-1 text-black">
-          Editar preços
+        <h2 className="text-lg font-bold mb-4 text-black">
+          Editar peça
         </h2>
 
-        <p className="text-sm text-gray-600 mb-4">
-          {part.name}
-        </p>
+        {/* NOME DA PEÇA */}
+        <div className="mb-3">
+          <label className="text-sm font-medium text-black">
+            Nome da peça
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full border px-3 py-2 rounded-md mt-1 text-black"
+            placeholder="Ex.: Filtro de óleo"
+          />
+        </div>
 
         {/* PREÇO DE CUSTO */}
         <div className="mb-3">
@@ -125,7 +148,7 @@ export default function EditPartPriceModal({
         )}
 
         <p className="text-xs text-gray-500 mb-4">
-          Alterações de preço não afetam orçamentos já criados.
+          Alterações não afetam orçamentos já criados.
         </p>
 
         {error && (

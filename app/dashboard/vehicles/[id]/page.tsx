@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
@@ -58,7 +58,20 @@ export default function VehiclePage() {
   const [services, setServices] = useState<ServiceOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [showBudgetsModal, setShowBudgetsModal] = useState(false); // Novo Estado
+  const [showBudgetsModal, setShowBudgetsModal] = useState(false);
+
+  // Modal de edição
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const [editForm, setEditForm] = useState({
+    plate: "",
+    brand: "",
+    model: "",
+    year: "",
+    clientName: "",
+    clientPhone: "",
+  });
 
   useEffect(() => {
     if (!vehicleId) return;
@@ -90,14 +103,14 @@ export default function VehiclePage() {
       year: data.year,
       client: Array.isArray(data.client)
         ? data.client[0]
-        : (data.client as any),
+        : (data.client as Client | null),
     });
   }
 
   async function loadBudgets() {
     const { data } = await supabase
       .from("budgets")
-      .select(`id, created_at, total, status, budget_items ( id, description )`) // Adicione o status aqui
+      .select(`id, created_at, total, status, budget_items ( id, description )`)
       .eq("vehicle_id", vehicleId)
       .order("created_at", { ascending: false });
 
@@ -121,9 +134,71 @@ export default function VehiclePage() {
         budget_id: item.budget_id,
         total: item.total,
         status: item.status,
-        budgets: Array.isArray(item.budgets) ? item.budgets[0] : item.budgets,
+        budgets: Array.isArray(item.budgets)
+          ? item.budgets[0]
+          : item.budgets,
       }));
+
       setServices(formattedServices);
+    }
+  }
+
+  function openEditModal() {
+    if (!vehicle) return;
+
+    setEditForm({
+      plate: vehicle.plate || "",
+      brand: vehicle.brand || "",
+      model: vehicle.model || "",
+      year: vehicle.year || "",
+      clientName: vehicle.client?.name || "",
+      clientPhone: vehicle.client?.phone || "",
+    });
+
+    setShowEditModal(true);
+  }
+
+  async function handleSaveEdit(e: FormEvent) {
+    e.preventDefault();
+
+    if (!vehicle) return;
+
+    setSavingEdit(true);
+
+    try {
+      // Atualiza veículo
+      const { error: vehicleError } = await supabase
+        .from("vehicles")
+        .update({
+          plate: editForm.plate.trim().toUpperCase(),
+          brand: editForm.brand.trim(),
+          model: editForm.model.trim(),
+          year: editForm.year.trim(),
+        })
+        .eq("id", vehicle.id);
+
+      if (vehicleError) throw vehicleError;
+
+      // Atualiza cliente, se existir
+      if (vehicle.client) {
+        const { error: clientError } = await supabase
+          .from("clients")
+          .update({
+            name: editForm.clientName.trim(),
+            phone: editForm.clientPhone.trim() || null,
+          })
+          .eq("id", vehicle.client.id);
+
+        if (clientError) throw clientError;
+      }
+
+      await loadVehicle();
+      setShowEditModal(false);
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao salvar alterações.");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -139,6 +214,7 @@ export default function VehiclePage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       if (!user) throw new Error("Usuário não autenticado");
 
       const { error } = await supabase.rpc("register_budget_as_service_order", {
@@ -147,6 +223,7 @@ export default function VehiclePage() {
       });
 
       if (error) throw error;
+
       await Promise.all([loadBudgets(), loadServices()]);
       setShowModal(false);
     } catch (err: any) {
@@ -182,7 +259,7 @@ export default function VehiclePage() {
       <AppHeader />
 
       <section className="max-w-5xl mx-auto mt-8 space-y-6 px-4 pb-10">
-        {/* INFO VEICULO */}
+        {/* INFO VEÍCULO */}
         <div className="bg-white p-6 rounded-md shadow">
           <h2 className="text-lg font-semibold text-black mb-2">
             Informações do Veículo
@@ -243,19 +320,28 @@ export default function VehiclePage() {
           >
             Registrar serviço
           </button>
+
+          <button
+            onClick={openEditModal}
+            className="bg-gray-800 text-white px-4 py-2 rounded-md cursor-pointer hover:bg-black font-medium"
+          >
+            Editar Informações
+          </button>
         </div>
 
-        {/* SERVIÇOS EXECUTADOS (OS) */}
+        {/* SERVIÇOS EXECUTADOS */}
         <div className="bg-white p-6 rounded-md shadow">
           <h2 className="text-lg font-semibold text-black mb-4">
             Serviços Executados
           </h2>
+
           {services.length === 0 && (
             <p className="text-black text-sm">Nenhum serviço executado.</p>
           )}
+
           <div className="space-y-4">
             {services
-              .filter((s: any) => s.status !== "canceled")
+              .filter((s) => s.status !== "canceled")
               .map(
                 (s) =>
                   s.budgets && (
@@ -267,19 +353,23 @@ export default function VehiclePage() {
                         <p className="font-semibold text-blue-700">
                           Ordem de Serviço #{s.id.slice(0, 8)}
                         </p>
+
                         <p className="text-sm">
                           Data:{" "}
                           {new Date(s.created_at).toLocaleDateString("pt-BR")}
                         </p>
+
                         <ul className="list-disc ml-4 text-sm text-gray-700">
                           {s.budgets.budget_items.map((item) => (
                             <li key={item.id}>{item.description}</li>
                           ))}
                         </ul>
+
                         <p className="font-semibold text-sm">
                           {formatMoney(s.total)}
                         </p>
                       </div>
+
                       <button
                         onClick={() =>
                           router.push(`/dashboard/service-orders/${s.id}`)
@@ -295,7 +385,7 @@ export default function VehiclePage() {
         </div>
       </section>
 
-      {/* MODAL: VER ORÇAMENTOS (HISTÓRICO) */}
+      {/* MODAL: VER ORÇAMENTOS */}
       {showBudgetsModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white p-6 rounded-md w-full max-w-2xl shadow-xl">
@@ -310,59 +400,63 @@ export default function VehiclePage() {
             ) : (
               <ul className="space-y-3 max-h-[60vh] overflow-auto pr-2">
                 {budgets.map((b) => {
-  const isUsed =
-    b.status === "converted" || usedBudgetIds.includes(b.id);
+                  const isUsed =
+                    b.status === "converted" ||
+                    usedBudgetIds.includes(b.id);
 
-  return (
-    <li
-      key={b.id}
-      className="border p-4 rounded-md bg-gray-50 flex justify-between items-center group"
-    >
-      <div>
-        <p className="text-xs font-bold text-black uppercase tracking-tight">
-          #{b.id.slice(0, 8)}
-        </p>
-        <p className="text-sm text-black font-medium text-black">
-          Data:{" "}
-          {new Date(b.created_at).toLocaleDateString("pt-BR")}
-        </p>
-        <p className="text-xs text-gray-600 mt-1 italic">
-          {b.budget_items
-            .slice(0, 3)
-            .map((i) => i.description)
-            .join(", ")}
-          {b.budget_items.length > 3 && "..."}
-        </p>
-        <p className="text-sm font-bold mt-1 text-green-700">
-          {formatMoney(b.total)}
-        </p>
-      </div>
+                  return (
+                    <li
+                      key={b.id}
+                      className="border p-4 rounded-md bg-gray-50 flex justify-between items-center group"
+                    >
+                      <div>
+                        <p className="text-xs font-bold text-black uppercase tracking-tight">
+                          #{b.id.slice(0, 8)}
+                        </p>
 
-      <div className="flex gap-2">
-        <button
-          onClick={() =>
-            router.push(`/dashboard/budgets/${b.id}`)
-          }
-          className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-gray-800 cursor-pointer transition-colors"
-        >
-          Abrir
-        </button>
+                        <p className="text-sm font-medium text-black">
+                          Data:{" "}
+                          {new Date(b.created_at).toLocaleDateString("pt-BR")}
+                        </p>
 
-        <button
-          disabled={isUsed}
-          onClick={() => handleDeleteBudget(b.id)}
-          className={`px-4 py-2 rounded text-sm font-medium text-white transition-colors ${
-            isUsed
-              ? "bg-gray-300 cursor-not-allowed opacity-50"
-              : "bg-red-600 hover:bg-red-700 cursor-pointer"
-          }`}
-        >
-          Deletar
-        </button>
-      </div>
-    </li>
-  );
-})}
+                        <p className="text-xs text-gray-600 mt-1 italic">
+                          {b.budget_items
+                            .slice(0, 3)
+                            .map((i) => i.description)
+                            .join(", ")}
+                          {b.budget_items.length > 3 && "..."}
+                        </p>
+
+                        <p className="text-sm font-bold mt-1 text-green-700">
+                          {formatMoney(b.total)}
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() =>
+                            router.push(`/dashboard/budgets/${b.id}`)
+                          }
+                          className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-gray-800 cursor-pointer transition-colors"
+                        >
+                          Abrir
+                        </button>
+
+                        <button
+                          disabled={isUsed}
+                          onClick={() => handleDeleteBudget(b.id)}
+                          className={`px-4 py-2 rounded text-sm font-medium text-white transition-colors ${
+                            isUsed
+                              ? "bg-gray-300 cursor-not-allowed opacity-50"
+                              : "bg-red-600 hover:bg-red-700 cursor-pointer"
+                          }`}
+                        >
+                          Deletar
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
 
@@ -378,17 +472,19 @@ export default function VehiclePage() {
         </div>
       )}
 
-      {/* MODAL: REGISTRAR SERVIÇO (FILTRADO) */}
+      {/* MODAL: REGISTRAR SERVIÇO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white p-6 rounded-md w-full max-w-lg shadow-xl">
             <h3 className="text-lg font-semibold text-black mb-4">
               Selecionar orçamento para OS
             </h3>
+
             <ul className="space-y-3 max-h-80 overflow-auto">
               {budgets.map((b) => {
                 const isUsed =
-                  b.status === "converted" || usedBudgetIds.includes(b.id);
+                  b.status === "converted" ||
+                  usedBudgetIds.includes(b.id);
 
                 return (
                   <li
@@ -397,13 +493,19 @@ export default function VehiclePage() {
                   >
                     <div className="text-sm space-y-1">
                       <p
-                        className={`font-semibold ${isUsed ? "text-gray-400" : "text-black"}`}
+                        className={`font-semibold ${
+                          isUsed ? "text-gray-400" : "text-black"
+                        }`}
                       >
-                        {isUsed ? "Convertido em OS" : "Orçamento disponível"}
+                        {isUsed
+                          ? "Convertido em OS"
+                          : "Orçamento disponível"}
                       </p>
+
                       <p className="text-gray-500 text-xs">
                         {new Date(b.created_at).toLocaleDateString("pt-BR")}
                       </p>
+
                       <p className="font-bold text-sm">
                         {formatMoney(b.total)}
                       </p>
@@ -424,12 +526,177 @@ export default function VehiclePage() {
                 );
               })}
             </ul>
+
             <button
               onClick={() => setShowModal(false)}
               className="mt-4 text-sm text-gray-500 underline cursor-pointer"
             >
               Cancelar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDITAR INFORMAÇÕES */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white p-6 rounded-md w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-black mb-6 border-b pb-2">
+              Editar Informações
+            </h3>
+
+            <form onSubmit={handleSaveEdit} className="space-y-6">
+              {/* Dados do Veículo */}
+              <div>
+                <h4 className="text-base font-semibold text-black mb-3">
+                  Dados do Veículo
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-1">
+                      Placa
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.plate}
+                      onChange={(e) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          plate: e.target.value.toUpperCase(),
+                        }))
+                      }
+                      className="w-full border rounded-md px-3 py-2 text-black"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-1">
+                      Ano
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.year}
+                      onChange={(e) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          year: e.target.value,
+                        }))
+                      }
+                      className="w-full border rounded-md px-3 py-2 text-black"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-1">
+                      Marca
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.brand}
+                      onChange={(e) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          brand: e.target.value,
+                        }))
+                      }
+                      className="w-full border rounded-md px-3 py-2 text-black"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-1">
+                      Modelo
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.model}
+                      onChange={(e) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          model: e.target.value,
+                        }))
+                      }
+                      className="w-full border rounded-md px-3 py-2 text-black"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Dados do Cliente */}
+              {vehicle.client && (
+                <div>
+                  <h4 className="text-base font-semibold text-black mb-3">
+                    Dados do Cliente
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-black mb-1">
+                        Nome
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.clientName}
+                        onChange={(e) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            clientName: e.target.value,
+                          }))
+                        }
+                        className="w-full border rounded-md px-3 py-2 text-black"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-black mb-1">
+                        Telefone
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.clientPhone}
+                        onChange={(e) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            clientPhone: e.target.value,
+                          }))
+                        }
+                        className="w-full border rounded-md px-3 py-2 text-black"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Botões */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  disabled={savingEdit}
+                  className="bg-gray-200 text-black px-5 py-2 rounded-md font-medium hover:bg-gray-300 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className={`px-5 py-2 rounded-md font-medium text-white ${
+                    savingEdit
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-green-600 hover:bg-green-700 cursor-pointer"
+                  }`}
+                >
+                  {savingEdit ? "Salvando..." : "Salvar Alterações"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

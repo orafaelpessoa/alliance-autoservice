@@ -218,9 +218,9 @@ if (error) throw error;
         </div>
 
         <div className="flex gap-3 flex-wrap">
-           <button onClick={() => router.push(`/dashboard/budgets/new?vehicleId=${vehicle.id}`)} className="bg-yellow-300 px-4 py-2 rounded-md hover:bg-yellow-400 font-medium cursor-pointer">Novo Orçamento</button>
+           <button onClick={() => router.push(`/dashboard/budgets/new?vehicleId=${vehicle.id}`)} className="bg-yellow-300 px-4 py-2 rounded-md hover:bg-yellow-400 font-medium cursor-pointer">Fazer Orçamento</button>
            <button onClick={() => setShowBudgetsModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium cursor-pointer">Ver Orçamentos</button>
-           <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium cursor-pointer">Registrar OS</button>
+           <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium cursor-pointer">Registrar Serviço</button>
            <button onClick={openEditModal} className="bg-gray-800 text-white px-4 py-2 rounded-md hover:bg-black font-medium cursor-pointer">Editar Informações</button>
         </div>
 

@@ -191,16 +191,71 @@ if (error) throw error;
     if (!error) setBudgets((prev) => prev.filter((b) => b.id !== id));
   };
   function formatMoney(v: number) { return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
-  async function handleRegisterService(bid: string) { /* ...mesma lógica de antes... */ }
+
+  async function handleRegisterService(bid: string) {
+  try {
+    // 1. Obtém o usuário autenticado
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error("Usuário não autenticado.");
+    }
+
+    // 2. Chama a função RPC que converte o orçamento em Ordem de Serviço
+    const { error } = await supabase.rpc(
+      "register_budget_as_service_order",
+      {
+        p_budget_id: bid,
+        p_user_id: user.id,
+      }
+    );
+
+    // 3. Se houver erro no RPC, interrompe
+    if (error) {
+      throw error;
+    }
+
+    // 4. Recarrega os dados da página
+    await Promise.all([
+      loadBudgets(),
+      loadServices(),
+    ]);
+
+    // 5. Fecha o modal de seleção de orçamento
+    setShowModal(false);
+
+    // 6. Mensagem de sucesso
+    alert("Serviço registrado com sucesso!");
+  } catch (err: any) {
+    console.error("Erro ao registrar serviço:", err);
+
+    // Tratamento específico para orçamento já convertido
+    if (
+      err.message?.toLowerCase().includes("já convertido") ||
+      err.message?.toLowerCase().includes("already converted")
+    ) {
+      alert("Este orçamento já foi convertido em Ordem de Serviço.");
+      return;
+    }
+
+    // Tratamento genérico
+    alert(
+      "Erro ao registrar serviço: " +
+        (err.message || "Verifique o console.")
+    );
+  }
+}
 
   const usedBudgetIds = services.map((s) => s.budget_id);
 
   if (loading || !vehicle) return <div className="p-8 text-center text-black">Carregando...</div>;
 
-  return (
+    return (
     <main className="min-h-screen bg-gray-100 text-black">
       <AppHeader />
-      
+
       {/* INFO DISPLAY */}
       <section className="max-w-5xl mx-auto mt-8 space-y-6 px-4 pb-10">
         <div className="bg-white p-6 rounded-md shadow">
@@ -213,93 +268,309 @@ if (error) throw error;
         <div className="bg-white p-6 rounded-md shadow">
           <h2 className="text-lg font-semibold mb-2">Cliente Vinculado</h2>
           {vehicle.client ? (
-            <p><strong>Nome:</strong> {vehicle.client.name} <br/> <strong>Fone:</strong> {vehicle.client.phone || "N/A"}</p>
-          ) : <p>Nenhum cliente.</p>}
+            <p>
+              <strong>Nome:</strong> {vehicle.client.name}
+              <br />
+              <strong>Fone:</strong> {vehicle.client.phone || "N/A"}
+            </p>
+          ) : (
+            <p>Nenhum cliente.</p>
+          )}
         </div>
 
         <div className="flex gap-3 flex-wrap">
-           <button onClick={() => router.push(`/dashboard/budgets/new?vehicleId=${vehicle.id}`)} className="bg-yellow-300 px-4 py-2 rounded-md hover:bg-yellow-400 font-medium cursor-pointer">Fazer Orçamento</button>
-           <button onClick={() => setShowBudgetsModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium cursor-pointer">Ver Orçamentos</button>
-           <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium cursor-pointer">Registrar Serviço</button>
-           <button onClick={openEditModal} className="bg-gray-800 text-white px-4 py-2 rounded-md hover:bg-black font-medium cursor-pointer">Editar Informações</button>
+          <button
+            onClick={() =>
+              router.push(`/dashboard/budgets/new?vehicleId=${vehicle.id}`)
+            }
+            className="bg-yellow-300 px-4 py-2 rounded-md hover:bg-yellow-400 font-medium cursor-pointer"
+          >
+            Fazer Orçamento
+          </button>
+
+          <button
+            onClick={() => setShowBudgetsModal(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium cursor-pointer"
+          >
+            Ver Orçamentos
+          </button>
+
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium cursor-pointer"
+          >
+            Registrar Serviço
+          </button>
+
+          <button
+            onClick={openEditModal}
+            className="bg-gray-800 text-white px-4 py-2 rounded-md hover:bg-black font-medium cursor-pointer"
+          >
+            Editar Informações
+          </button>
         </div>
 
-        {/* LISTA DE SERVIÇOS (mantida como o seu código anterior) */}
+        {/* LISTA DE SERVIÇOS */}
         <div className="bg-white p-6 rounded-md shadow">
-           <h2 className="text-lg font-semibold mb-4">Serviços Executados</h2>
-           {services.length === 0 && <p className="text-sm">Nenhum serviço.</p>}
-           {services.map(s => s.budgets && (
-             <div key={s.id} className="border-b py-4 flex justify-between items-center">
-               <div>
-                 <p className="font-bold text-blue-700">OS #{s.id.slice(0,8)}</p>
-                 <p className="text-xs text-gray-500">{new Date(s.created_at).toLocaleDateString()}</p>
-                 <p className="text-sm">{formatMoney(s.total)}</p>
-               </div>
-               <button onClick={() => router.push(`/dashboard/service-orders/${s.id}`)} className="text-sm border px-3 py-1 rounded hover:bg-gray-50 cursor-pointer">Ver OS</button>
-             </div>
-           ))}
+          <h2 className="text-lg font-semibold mb-4">Serviços Executados</h2>
+
+          {services.length === 0 && (
+            <p className="text-sm">Nenhum serviço.</p>
+          )}
+
+          {services.map(
+            (s) =>
+              s.budgets && (
+                <div
+                  key={s.id}
+                  className="border-b py-4 flex justify-between items-center"
+                >
+                  <div>
+                    <p className="font-bold text-blue-700">
+                      OS #{s.id.slice(0, 8)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(s.created_at).toLocaleDateString()}
+                    </p>
+                    <p className="text-sm">{formatMoney(s.total)}</p>
+                  </div>
+
+                  <button
+                    onClick={() =>
+                      router.push(`/dashboard/service-orders/${s.id}`)
+                    }
+                    className="text-sm border px-3 py-1 rounded hover:bg-gray-50 cursor-pointer"
+                  >
+                    Ver OS
+                  </button>
+                </div>
+              )
+          )}
         </div>
       </section>
+
+      {/* MODAL REGISTRAR SERVIÇO */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg w-full max-w-2xl shadow-xl">
+            <h3 className="text-lg font-bold mb-4">
+              Selecionar Orçamento para Registrar Serviço
+            </h3>
+
+            <div className="max-h-96 overflow-y-auto space-y-2">
+              {budgets.filter(
+                (b) =>
+                  !usedBudgetIds.includes(b.id) &&
+                  b.status !== "converted"
+              ).length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  Nenhum orçamento disponível para registrar como serviço.
+                </p>
+              ) : (
+                budgets
+                  .filter(
+                    (b) =>
+                      !usedBudgetIds.includes(b.id) &&
+                      b.status !== "converted"
+                  )
+                  .map((b) => (
+                    <div
+                      key={b.id}
+                      className="border p-3 flex justify-between items-center rounded bg-gray-50"
+                    >
+                      <div>
+                        <p className="font-bold">
+                          #{b.id.slice(0, 8)} - {formatMoney(b.total)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(b.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleRegisterService(b.id)}
+                        className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 cursor-pointer"
+                      >
+                        Registrar
+                      </button>
+                    </div>
+                  ))
+              )}
+            </div>
+
+            <button
+              onClick={() => setShowModal(false)}
+              className="mt-4 w-full bg-gray-200 py-2 rounded font-bold cursor-pointer"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* MODAL EDIÇÃO INTEGRADO COM SUA LÓGICA DE CADASTRO */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-lg w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-6 border-b pb-2">Editar Veículo e Cliente</h3>
-            
+            <h3 className="text-xl font-bold mb-6 border-b pb-2">
+              Editar Veículo e Cliente
+            </h3>
+
             <form onSubmit={handleSaveEdit} className="space-y-6">
               {/* DADOS VEÍCULO */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 md:col-span-1">
                   <label className="block text-sm font-bold mb-1">Placa</label>
-                  <input value={editForm.plate} onChange={e => setEditForm({...editForm, plate: maskPlate(e.target.value)})} className="w-full border p-2 rounded" />
+                  <input
+                    value={editForm.plate}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        plate: maskPlate(e.target.value),
+                      })
+                    }
+                    className="w-full border p-2 rounded"
+                  />
                 </div>
+
                 <div className="col-span-2 md:col-span-1">
                   <label className="block text-sm font-bold mb-1">Ano</label>
-                  <input value={editForm.year} onChange={e => setEditForm({...editForm, year: e.target.value})} className="w-full border p-2 rounded" />
+                  <input
+                    value={editForm.year}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        year: e.target.value,
+                      })
+                    }
+                    className="w-full border p-2 rounded"
+                  />
                 </div>
+
                 <div className="col-span-2 md:col-span-1">
                   <label className="block text-sm font-bold mb-1">Marca</label>
-                  <input value={editForm.brand} onChange={e => setEditForm({...editForm, brand: e.target.value})} className="w-full border p-2 rounded" />
+                  <input
+                    value={editForm.brand}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        brand: e.target.value,
+                      })
+                    }
+                    className="w-full border p-2 rounded"
+                  />
                 </div>
+
                 <div className="col-span-2 md:col-span-1">
                   <label className="block text-sm font-bold mb-1">Modelo</label>
-                  <input value={editForm.model} onChange={e => setEditForm({...editForm, model: e.target.value})} className="w-full border p-2 rounded" />
+                  <input
+                    value={editForm.model}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        model: e.target.value,
+                      })
+                    }
+                    className="w-full border p-2 rounded"
+                  />
                 </div>
               </div>
 
               <hr />
 
-              {/* SELEÇÃO DE CLIENTE (Lógica que você enviou) */}
+              {/* SELEÇÃO DE CLIENTE */}
               <div>
-                <label className="block text-sm font-bold mb-3">Vínculo do Cliente</label>
+                <label className="block text-sm font-bold mb-3">
+                  Vínculo do Cliente
+                </label>
+
                 <div className="inline-flex rounded-md border overflow-hidden mb-4">
-                  <button type="button" onClick={() => setEditMode("existing")} className={`px-4 py-2 transition ${editMode === "existing" ? "bg-yellow-300" : "bg-white"}`}>Existente</button>
-                  <button type="button" onClick={() => setEditMode("new")} className={`px-4 py-2 transition ${editMode === "new" ? "bg-yellow-300" : "bg-white"}`}>Novo Cliente</button>
+                  <button
+                    type="button"
+                    onClick={() => setEditMode("existing")}
+                    className={`px-4 py-2 transition ${
+                      editMode === "existing"
+                        ? "bg-yellow-300"
+                        : "bg-white"
+                    }`}
+                  >
+                    Existente
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditMode("new")}
+                    className={`px-4 py-2 transition ${
+                      editMode === "new"
+                        ? "bg-yellow-300"
+                        : "bg-white"
+                    }`}
+                  >
+                    Novo Cliente
+                  </button>
                 </div>
 
                 {editMode === "existing" ? (
-                  <select 
-                    value={editForm.selectedClientId} 
-                    onChange={e => setEditForm({...editForm, selectedClientId: e.target.value})}
+                  <select
+                    value={editForm.selectedClientId}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        selectedClientId: e.target.value,
+                      })
+                    }
                     className="w-full border p-2 rounded"
                   >
                     <option value="">Selecione...</option>
-                    {allClients.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
+                    {allClients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.phone})
+                      </option>
                     ))}
                   </select>
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
-                    <input placeholder="Nome completo" value={editForm.newClientName} onChange={e => setEditForm({...editForm, newClientName: e.target.value})} className="w-full border p-2 rounded" />
-                    <input placeholder="Telefone" value={editForm.newClientPhone} onChange={e => setEditForm({...editForm, newClientPhone: maskPhone(e.target.value)})} className="w-full border p-2 rounded" />
+                    <input
+                      placeholder="Nome completo"
+                      value={editForm.newClientName}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          newClientName: e.target.value,
+                        })
+                      }
+                      className="w-full border p-2 rounded"
+                    />
+
+                    <input
+                      placeholder="Telefone"
+                      value={editForm.newClientPhone}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          newClientPhone: maskPhone(e.target.value),
+                        })
+                      }
+                      className="w-full border p-2 rounded"
+                    />
                   </div>
                 )}
               </div>
 
               <div className="flex justify-end gap-3 pt-6 border-t">
-                <button type="button" onClick={() => setShowEditModal(false)} className="bg-gray-100 px-6 py-2 rounded font-bold cursor-pointer">Cancelar</button>
-                <button type="submit" disabled={savingEdit} className="bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700 cursor-pointer disabled:opacity-50">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="bg-gray-100 px-6 py-2 rounded font-bold cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700 cursor-pointer disabled:opacity-50"
+                >
                   {savingEdit ? "Salvando..." : "Salvar Alterações"}
                 </button>
               </div>
@@ -308,32 +579,60 @@ if (error) throw error;
         </div>
       )}
 
-      {/* MODAL ORÇAMENTOS (Mesma lógica do seu b.id) */}
+      {/* MODAL ORÇAMENTOS */}
       {showBudgetsModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-lg w-full max-w-2xl shadow-xl">
-             <h3 className="text-lg font-bold mb-4">Orçamentos do Veículo</h3>
-             <div className="max-h-96 overflow-y-auto space-y-2">
-               {budgets.map(b => (
-                 <div key={b.id} className="border p-3 flex justify-between items-center rounded bg-gray-50">
-                   <div>
-                     <p className="font-bold">#{b.id.slice(0,8)} - {formatMoney(b.total)}</p>
-                     <p className="text-xs text-gray-500">{new Date(b.created_at).toLocaleDateString()}</p>
-                   </div>
-                   <div className="flex gap-2">
-                    <button onClick={() => router.push(`/dashboard/budgets/${b.id}`)} className="bg-black text-white px-3 py-1 rounded text-sm cursor-pointer">Abrir</button>
-                    <button 
-                      disabled={usedBudgetIds.includes(b.id) || b.status === 'converted'} 
-                      onClick={() => handleDeleteBudget(b.id)} 
+            <h3 className="text-lg font-bold mb-4">
+              Orçamentos do Veículo
+            </h3>
+
+            <div className="max-h-96 overflow-y-auto space-y-2">
+              {budgets.map((b) => (
+                <div
+                  key={b.id}
+                  className="border p-3 flex justify-between items-center rounded bg-gray-50"
+                >
+                  <div>
+                    <p className="font-bold">
+                      #{b.id.slice(0, 8)} - {formatMoney(b.total)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(b.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        router.push(`/dashboard/budgets/${b.id}`)
+                      }
+                      className="bg-black text-white px-3 py-1 rounded text-sm cursor-pointer"
+                    >
+                      Abrir
+                    </button>
+
+                    <button
+                      disabled={
+                        usedBudgetIds.includes(b.id) ||
+                        b.status === "converted"
+                      }
+                      onClick={() => handleDeleteBudget(b.id)}
                       className="bg-red-600 text-white px-3 py-1 rounded text-sm disabled:opacity-30 cursor-pointer"
                     >
                       Excluir
                     </button>
-                   </div>
-                 </div>
-               ))}
-             </div>
-             <button onClick={() => setShowBudgetsModal(false)} className="mt-4 w-full bg-gray-200 py-2 rounded font-bold cursor-pointer">Fechar</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowBudgetsModal(false)}
+              className="mt-4 w-full bg-gray-200 py-2 rounded font-bold cursor-pointer"
+            >
+              Fechar
+            </button>
           </div>
         </div>
       )}

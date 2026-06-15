@@ -148,6 +148,13 @@ export default function BudgetPage() {
               {downloading ? "Gerando PDF..." : "Baixar PDF"}
             </button>
 
+              <Link
+  href={`/dashboard/budgets/${budget.id}/edit`}
+  className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+>
+  Editar orçamento
+</Link>
+
             <Link
               href={`/dashboard/budgets/${budget.id}/print`}
               className="px-4 py-2 rounded-md bg-gray-800 text-white hover:bg-gray-700"
